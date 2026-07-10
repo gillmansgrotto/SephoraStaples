@@ -597,12 +597,14 @@ function SephoraTracker() {
     const scrollToTop = () => {
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
+    const FILTER_TITLES = { all: "Staples", wishlist: "Want to Get", owned: "Makeup Bag", starred: "Top Picks" };
     const copyWishlist = async () => {
         const lines = [];
         allCats.forEach((cat) => {
-            const wanted = itemsFor(cat).filter((i) => state[`${cat.name}::${i.name}`] === 1);
-            wanted.forEach((i) => {
+            itemsFor(cat).forEach((i) => {
                 const key = `${cat.name}::${i.name}`;
+                if (!visible(key))
+                    return;
                 let line = `• ${names[key] || i.name} (${cat.name})`;
                 if (shades[key])
                     line += ` — shade: ${shades[key]}`;
@@ -610,12 +612,19 @@ function SephoraTracker() {
                     line += ` — ${notes[key]}`;
                 if (stars[key])
                     line = line.replace("• ", "• ★ ");
+                if (filter === "all") {
+                    const s = state[key] || 0;
+                    if (s === 1)
+                        line += " — ♡ want to get";
+                    if (s === 2)
+                        line += " — 👛 in makeup bag";
+                }
                 lines.push(line);
             });
         });
         const text = lines.length
-            ? `Rose's Sephora Staples — Tap-to-Get list:\n${lines.join("\n")}`
-            : "Nothing on the Tap-to-Get list yet.";
+            ? `Rose's Sephora Staples — ${FILTER_TITLES[filter]} List:\n${lines.join("\n")}`
+            : `Nothing on the ${FILTER_TITLES[filter]} list yet.`;
         try {
             await navigator.clipboard.writeText(text);
             setCopied(true);
@@ -783,8 +792,8 @@ function SephoraTracker() {
                         " marks what's new"),
                     React.createElement("p", { style: styles.helpLine },
                         "- ",
-                        React.createElement("b", null, "Copy Tap-to-Get list \uD83D\uDCCB"),
-                        " exports everything you want, colors and notes included"),
+                        React.createElement("b", null, "Copy List \uD83D\uDCCB"),
+                        " copies whichever view you're on \u2014 colors and notes included"),
                     React.createElement("p", { style: { ...styles.helpLine, fontStyle: "italic", color: "#D2688A", textAlign: "center", marginTop: 8 } }, "And obviously there is nothing basic about you, Strudel \u2014 you're the best there ever was."),
                     React.createElement("button", { style: styles.helpGotIt, onClick: dismissHelp }, "Got it \uD83D\uDC8B"))))),
             React.createElement("div", { style: styles.stickyBar },
@@ -901,7 +910,7 @@ function SephoraTracker() {
                                                         setEditingName(null);
                                                         setNameText("");
                                                     }
-                                                }, autoFocus: true }),
+                                                }, ref: (el) => el && el.focus({ preventScroll: true }) }),
                                             React.createElement("button", { style: styles.shadeSaveBtn, onClick: () => saveName(key, item.name) }, "Save"))) : (React.createElement("span", { style: { cursor: "pointer" }, title: "Tap to rename", onClick: (e) => {
                                                 e.stopPropagation();
                                                 setEditingName(key);
@@ -915,7 +924,7 @@ function SephoraTracker() {
                                                         setEditingShade(null);
                                                         setShadeText("");
                                                     }
-                                                }, autoFocus: true }),
+                                                }, ref: (el) => el && el.focus({ preventScroll: true }) }),
                                             React.createElement("button", { style: styles.shadeSaveBtn, onClick: () => saveShade(key) }, "Save"))) : (React.createElement("span", { style: styles.inlineRow },
                                             React.createElement("span", { style: shades[key] ? styles.shadeText : styles.shadeAdd, onClick: (e) => {
                                                     e.stopPropagation();
@@ -930,7 +939,7 @@ function SephoraTracker() {
                                                         setEditingNote(null);
                                                         setNoteText("");
                                                     }
-                                                }, autoFocus: true }),
+                                                }, ref: (el) => el && el.focus({ preventScroll: true }) }),
                                             React.createElement("button", { style: styles.shadeSaveBtn, onClick: () => saveNote(key) }, "Save"))) : (React.createElement("span", { style: styles.inlineRow },
                                             React.createElement("span", { style: notes[key] ? styles.noteText : styles.shadeAdd, onClick: (e) => {
                                                     e.stopPropagation();
@@ -946,7 +955,7 @@ function SephoraTracker() {
                                         changedKeys.includes(key) && (React.createElement("span", { style: styles.actionUpdated }, "\u25CF Updated")))));
                             }),
                             filter === "all" && (addingTo === cat.name ? (React.createElement("div", { style: styles.addForm, onClick: (e) => e.stopPropagation() },
-                                React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Product name", value: newName, onChange: (e) => setNewName(e.target.value), autoFocus: true }),
+                                React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Product name", value: newName, onChange: (e) => setNewName(e.target.value), ref: (el) => el && el.focus({ preventScroll: true }) }),
                                 React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Product link (optional)", value: newLink, onChange: (e) => setNewLink(e.target.value) }),
                                 React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Color / shade (optional)", value: newShade, onChange: (e) => setNewShade(e.target.value) }),
                                 React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Note (optional)", value: newNote, onChange: (e) => setNewNote(e.target.value) }),
@@ -968,7 +977,7 @@ function SephoraTracker() {
                     filter === "starred" && "No Top Picks yet — tap the ☆ on a favorite to crown it ★")),
                 React.createElement("div", { style: styles.bottomCard },
                     React.createElement("div", { style: styles.bottomActions },
-                        React.createElement("button", { onClick: copyWishlist, style: styles.syncBtn }, copied ? "Copied! 💕" : "Copy Tap-to-Get list 📋"),
+                        React.createElement("button", { onClick: copyWishlist, style: styles.syncBtn }, copied ? "Copied! 💕" : `Copy ${FILTER_TITLES[filter]} List 📋`),
                         copyFallback && (React.createElement("div", { style: styles.copyFallbackWrap },
                             React.createElement("p", { style: styles.footnote }, "Couldn't reach the clipboard \u2014 long-press to copy from here:"),
                             React.createElement("textarea", { style: styles.copyFallbackBox, readOnly: true, value: copyFallback, onFocus: (e) => e.target.select() }),
@@ -985,7 +994,7 @@ function SephoraTracker() {
                         React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Category name (e.g. Nails)", value: newCatName, onChange: (e) => setNewCatName(e.target.value), onKeyDown: (e) => {
                                 if (e.key === "Enter")
                                     addCategory();
-                            }, autoFocus: true }),
+                            }, ref: (el) => el && el.focus({ preventScroll: true }) }),
                         React.createElement("div", { style: styles.addFormRow },
                             React.createElement("button", { style: styles.addConfirmBtn, onClick: addCategory }, "Add Category"),
                             React.createElement("button", { style: styles.addCancelBtn, onClick: () => {
@@ -1092,12 +1101,7 @@ const styles = {
         transition: "left 400ms ease",
     },
     stickyBar: {
-        position: "sticky",
-        top: 0,
-        zIndex: 15,
         background: "rgba(255,255,255,0.96)",
-        backdropFilter: "blur(5px)",
-        WebkitBackdropFilter: "blur(5px)",
         padding: "12px 14px 10px",
         margin: "0 0 16px",
         border: "1px solid #F8E3E9",
