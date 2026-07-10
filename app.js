@@ -742,7 +742,6 @@ function SephoraTracker() {
                             "- Hit ",
                             React.createElement("b", null, "Refresh List \u2191"),
                             " to see each other's latest changes"),
-                        React.createElement("p", { style: { ...styles.helpLine, fontStyle: "italic", color: "#D2688A", textAlign: "center", marginTop: 8 } }, "And obviously there is nothing basic about you as you are the best ever."),
                         React.createElement("button", { style: styles.helpGotIt, onClick: dismissHelp }, "Got it \uD83D\uDC8B"))))),
                 ORDERED_CATEGORIES.map((cat, ci) => {
                     const items = [...itemsFor(cat)].sort((a, b) => ((state[`${cat.name}::${b.name}`] || 0) === 2 ? 1 : 0) -
