@@ -233,7 +233,7 @@ const DB_URL = "https://rose-sephora-staples-default-rtdb.firebaseio.com";
 const STORAGE_KEY = "sephora-tracker-v1";
 // Status cycle: 0 = untracked, 1 = wishlist, 2 = got it
 const STATUS = {
-    0: { label: "Tap to track", short: "—" },
+    0: { label: "Tap to get", short: "—" },
     1: { label: "Tap to get", short: "♡" },
     2: { label: "In makeup bag", short: "✓" },
 };
@@ -440,6 +440,10 @@ function SephoraTracker() {
             });
             if (!resp.ok)
                 throw new Error(`HTTP ${resp.status}`);
+            try {
+                localStorage.setItem(LAST_SEEN_KEY, String(Date.now()));
+            }
+            catch (e2) { }
             setSaveStatus("saved");
             setTimeout(() => setSaveStatus((s) => (s === "saved" ? "" : s)), 2000);
         }
@@ -662,7 +666,7 @@ function SephoraTracker() {
                             : {}),
                     } }, label)))),
                 React.createElement("div", { style: styles.jumpRow },
-                    React.createElement("input", { style: styles.jumpInput, placeholder: "\uD83D\uDD0D Jump to Staple Section", value: sectionQuery, onChange: (e) => setSectionQuery(e.target.value), onKeyDown: (e) => {
+                    React.createElement("input", { className: "jump-input", style: styles.jumpInput, placeholder: "\uD83D\uDD0D Jump to Staple Section", value: sectionQuery, onChange: (e) => setSectionQuery(e.target.value), onKeyDown: (e) => {
                             if (e.key === "Enter" && sectionMatches.length > 0)
                                 jumpToSection(sectionMatches[0].name);
                         } }),
@@ -740,8 +744,8 @@ function SephoraTracker() {
                         React.createElement("p", { style: { ...styles.helpLine, fontStyle: "italic", color: "#D2688A", textAlign: "center", marginTop: 8 } }, "And obviously there is nothing basic about you as you are the best ever."),
                         React.createElement("button", { style: styles.helpGotIt, onClick: dismissHelp }, "Got it \uD83D\uDC8B"))))),
                 ORDERED_CATEGORIES.map((cat, ci) => {
-                    const items = [...itemsFor(cat)].sort((a, b) => ((state[`${cat.name}::${a.name}`] || 0) === 2 ? 1 : 0) -
-                        ((state[`${cat.name}::${b.name}`] || 0) === 2 ? 1 : 0));
+                    const items = [...itemsFor(cat)].sort((a, b) => ((state[`${cat.name}::${b.name}`] || 0) === 2 ? 1 : 0) -
+                        ((state[`${cat.name}::${a.name}`] || 0) === 2 ? 1 : 0));
                     const keys = items.map((i) => `${cat.name}::${i.name}`);
                     const shown = keys.filter(visible);
                     if (shown.length === 0 && filter !== "all")
@@ -856,16 +860,15 @@ function SephoraTracker() {
                             "Restore removed products (",
                             removed.length,
                             ")")),
-                        React.createElement("button", { onClick: reset, style: styles.resetBtn }, confirmingReset ? "Tap again to clear everything" : "Clear all")),
-                    React.createElement("p", { style: styles.footnote }, "Shared list \u2014 checkmarks save for everyone with the link. Tap Refresh List to see the latest.")),
-                React.createElement("p", { style: styles.dedication }, "Sephora Staples is dedicated to Strudel, who not only deserves everything on this list but deserves the best in life for eternity"))),
+                        React.createElement("button", { onClick: reset, style: styles.resetBtn }, confirmingReset ? "Tap again to clear everything" : "Clear all"))),
+                React.createElement("p", { style: styles.dedication }, "Sephora Staples is dedicated & devoted to Strudel, who not only deserves everything on this list but deserves the best in life for eternity. \uD83D\uDC9A - T"))),
             saveStatus && (React.createElement("div", { style: {
                     ...styles.savePill,
                     ...(saveStatus === "error" ? styles.savePillError : {}),
                 } },
                 saveStatus === "saving" && "Saving…",
                 saveStatus === "saved" && "Saved ✓",
-                saveStatus === "error" && "⚠️ Can't reach the database — changes aren't saving. Check the Firebase URL & rules.")),
+                saveStatus === "error" && "Oops, we spilt the Mascara! The Sephora Staples Database isn't saving, get a hold of Tyler!")),
             showTopBtn && (React.createElement("button", { onClick: scrollToTop, style: styles.topBtn, "aria-label": "Back to top" }, "\u2191 Top")))));
 }
 // ---- Styles ----------------------------------------------------------------
@@ -874,7 +877,7 @@ const styles = {
         minHeight: "100vh",
         background: "repeating-linear-gradient(90deg, #FFFFFF 0px, #FFFFFF 12px, #FDF1F4 12px, #FDF1F4 24px)",
         backgroundColor: "#FDF1F4",
-        overflowX: "hidden",
+        overflowX: "clip",
         color: "#2B1B20",
         fontFamily: "'Karla', sans-serif",
         padding: "28px 16px 48px",
@@ -1220,7 +1223,7 @@ const styles = {
         justifyContent: "center",
     },
     starBtnActive: { borderColor: "#B98A4E", color: "#B98A4E", background: "#FDF9F2" },
-    copyFallbackWrap: { marginTop: 12 },
+    copyFallbackWrap: { marginTop: 12, flexBasis: "100%" },
     copyFallbackBox: {
         display: "block",
         width: "100%",
@@ -1288,7 +1291,7 @@ const styles = {
         background: "#FFFFFF",
         outline: "none",
     },
-    jumpChips: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 },
+    jumpChips: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12, marginBottom: 12 },
     jumpChip: {
         padding: "6px 12px",
         background: "#FFFFFF",
@@ -1323,18 +1326,19 @@ const styles = {
     },
     bottomActions: {
         display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
+        flexWrap: "wrap",
+        justifyContent: "center",
         gap: 10,
     },
     syncBtn: {
         display: "block",
         margin: 0,
+        flex: "1 1 45%",
         background: "#FBD5DF",
         border: "1px solid #F5AFC3",
         color: "#7A2E48",
         borderRadius: 999,
-        padding: "10px 24px",
+        padding: "8px 22px",
         fontSize: 13,
         fontWeight: 700,
         fontFamily: "'Karla', sans-serif",
@@ -1343,6 +1347,7 @@ const styles = {
     resetBtn: {
         display: "block",
         margin: 0,
+        flex: "1 1 45%",
         background: "transparent",
         border: "1px solid #E7CDD0",
         color: "#7A5E66",
