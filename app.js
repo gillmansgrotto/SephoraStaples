@@ -278,7 +278,21 @@ function SephoraTracker() {
             return true;
         }
     });
-    const [helpCollapsed, setHelpCollapsed] = useState(false);
+    const [helpCollapsed, setHelpCollapsed] = useState(() => {
+        try {
+            return localStorage.getItem("rose-help-collapsed") === "1";
+        }
+        catch (e) {
+            return false;
+        }
+    });
+    const updateHelpCollapsed = (value) => {
+        setHelpCollapsed(value);
+        try {
+            localStorage.setItem("rose-help-collapsed", value ? "1" : "0");
+        }
+        catch (e) { }
+    };
     const dismissHelp = () => {
         setShowHelp(false);
         try {
@@ -654,8 +668,8 @@ function SephoraTracker() {
             React.createElement("div", { style: styles.stickyBar },
                 React.createElement("div", { style: styles.filterRow, role: "tablist" }, [
                     ["all", "Staples 💋"],
-                    ["wishlist", `Want to Get ♡${wishCount ? ` (${wishCount})` : ""}`],
                     ["owned", `In Makeup Bag 🛍️${ownedCount ? ` (${ownedCount})` : ""}`],
+                    ["wishlist", `Want to Get ♡${wishCount ? ` (${wishCount})` : ""}`],
                     ["starred", `Top Picks ★${starCount ? ` (${starCount})` : ""}`],
                 ].map(([val, label]) => (React.createElement("button", { key: val, role: "tab", "aria-selected": filter === val, onClick: () => setFilter(val), style: {
                         ...styles.filterBtn,
@@ -677,16 +691,16 @@ function SephoraTracker() {
                     React.createElement("button", { style: styles.bulkBtn, onClick: () => setAllCollapsed(false) }, "Expand all \u25BE"),
                     React.createElement("button", { style: styles.bulkBtn, onClick: () => {
                             if (showHelp && !helpCollapsed) {
-                                setHelpCollapsed(true);
+                                updateHelpCollapsed(true);
                             }
                             else {
                                 setShowHelp(true);
-                                setHelpCollapsed(false);
+                                updateHelpCollapsed(false);
                             }
                         } }, "The Basics")))),
             !loaded ? (React.createElement("p", { style: styles.loading }, "Opening the vanity\u2026")) : (React.createElement("main", null,
                 showHelp && (React.createElement("div", { style: styles.helpCard },
-                    React.createElement("div", { style: { ...styles.helpTitle, cursor: "pointer" }, onClick: () => setHelpCollapsed((v) => !v), role: "button", "aria-expanded": !helpCollapsed },
+                    React.createElement("div", { style: { ...styles.helpTitle, cursor: "pointer" }, onClick: () => updateHelpCollapsed(!helpCollapsed), role: "button", "aria-expanded": !helpCollapsed },
                         "The Basics",
                         React.createElement("span", { style: styles.caret }, helpCollapsed ? "▸" : "▾")),
                     !helpCollapsed && (React.createElement("div", { className: "cat-body" },
@@ -802,16 +816,14 @@ function SephoraTracker() {
                                                     setEditingNote(key);
                                                     setNoteText(notes[key] || "");
                                                 } }, notes[key] ? `📝 ${notes[key]} ✎` : "+ add note"))),
-                                        (changedKeys.includes(key) || item.isCustom) && (React.createElement("span", { style: styles.statusHintInline },
-                                            changedKeys.includes(key) ? "● Updated" : "",
-                                            changedKeys.includes(key) && item.isCustom ? " · " : "",
-                                            item.isCustom ? "Added to the list" : ""))),
+                                        item.isCustom && (React.createElement("span", { style: styles.statusHintInline }, "Added to the list"))),
                                     React.createElement("div", { style: styles.actionCol, onClick: (e) => e.stopPropagation() },
                                         React.createElement("a", { href: item.url || sephoraUrl(item.q), target: "_blank", rel: "noopener noreferrer", style: styles.shopLink, "aria-label": `Shop ${item.name} on Sephora` }, "Shop \u2197"),
                                         React.createElement("div", { style: styles.actionIcons },
                                             React.createElement("button", { onClick: () => toggleStar(key), style: { ...styles.starBtn, ...(stars[key] ? styles.starBtnActive : {}) }, "aria-label": stars[key] ? `Unstar ${item.name}` : `Star ${item.name} as a top pick` }, stars[key] ? "★" : "☆"),
                                             React.createElement("button", { onClick: () => removeProduct(cat.name, item), style: styles.removeBtn, "aria-label": `Remove ${item.name}` }, "\u00D7")),
-                                        React.createElement("span", { style: styles.actionStatus }, STATUS[s].label))));
+                                        React.createElement("span", { style: styles.actionStatus }, STATUS[s].label),
+                                        changedKeys.includes(key) && (React.createElement("span", { style: styles.actionUpdated }, "\u25CF Updated")))));
                             }),
                             filter === "all" && (addingTo === cat.name ? (React.createElement("div", { style: styles.addForm, onClick: (e) => e.stopPropagation() },
                                 React.createElement("input", { style: styles.addInput, placeholder: "Product name", value: newName, onChange: (e) => setNewName(e.target.value), autoFocus: true }),
@@ -1066,7 +1078,11 @@ const styles = {
         fontSize: 13,
         fontWeight: 700,
     },
-    badgeWish: { borderColor: "#B98A4E", background: "#B98A4E", color: "#FFF8EC" },
+    badgeWish: {
+        borderColor: "#D99B8C",
+        background: "linear-gradient(135deg, #E8B4A0 0%, #D99B8C 45%, #C98276 100%)",
+        color: "#5C2E26",
+    },
     badgeOwned: { borderColor: "#F5AFC3", background: "#F5AFC3", color: "#7A2E48" },
     itemName: { flex: 1, minWidth: 0, fontSize: 14.5, lineHeight: 1.35, color: "#2B1B20", overflowWrap: "break-word" },
     statusHint: { fontSize: 10.5, color: "#B99AA3", letterSpacing: "0.04em", flexShrink: 0 },
@@ -1130,6 +1146,13 @@ const styles = {
         gap: 6,
     },
     actionIcons: { display: "flex", gap: 6 },
+    actionUpdated: {
+        fontSize: 10,
+        fontWeight: 700,
+        color: "#C4385B",
+        textAlign: "center",
+        letterSpacing: "0.03em",
+    },
     actionStatus: {
         fontSize: 10,
         color: "#9E7A85",
