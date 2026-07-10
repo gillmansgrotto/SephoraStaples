@@ -20,6 +20,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
 <style>
   html, body { margin: 0; padding: 0; }
+  *, *::before, *::after { box-sizing: border-box; }
 </style>
 </head>
 <body>
@@ -291,6 +292,8 @@ function SephoraTracker() {
   const [addingTo, setAddingTo] = useState(null); // category name with open add form
   const [newName, setNewName] = useState("");
   const [newLink, setNewLink] = useState("");
+  const [newShade, setNewShade] = useState("");
+  const [newNote, setNewNote] = useState("");
   const [shades, setShades] = useState({}); // { [itemKey]: "shade / color text" }
   const [editingShade, setEditingShade] = useState(null); // itemKey being edited
   const [shadeText, setShadeText] = useState("");
@@ -303,6 +306,7 @@ function SephoraTracker() {
   const [collapsed, setCollapsed] = useState({}); // { [catName]: true }
   const [collapsedInit, setCollapsedInit] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(""); // "" | saving | saved | error
   const [copyFallback, setCopyFallback] = useState("");
 
   const loadShared = async () => {
@@ -314,10 +318,12 @@ function SephoraTracker() {
     let noteMap = {};
     let updatedMap = {};
     let collapsedMap = null;
+    let readOk = false;
     let seeded = false;
     let seededV2 = false;
     try {
       const resp = await fetch(`${DB_URL}/tracker.json`);
+      readOk = resp.ok;
       const parsed = resp.ok ? await resp.json() : null;
       if (parsed) {
         if (parsed && parsed.statuses) {
@@ -337,7 +343,12 @@ function SephoraTracker() {
         }
       }
     } catch (e) {
-      // no saved data yet — start fresh
+      // network / URL problem — readOk stays false
+    }
+    if (!readOk) {
+      setSaveStatus("error");
+    } else {
+      setSaveStatus("");
     }
     if (!seeded) {
       SEED_IN_BAG.forEach((key) => {
@@ -384,7 +395,7 @@ function SephoraTracker() {
       setCollapsedInit(true);
     }
     setLoaded(true);
-    if (!seeded || !seededV2) {
+    if (readOk && (!seeded || !seededV2)) {
       try {
         await fetch(`${DB_URL}/tracker.json`, {
           method: "PUT",
@@ -423,13 +434,18 @@ function SephoraTracker() {
     setUpdatedAt(data.updatedAt);
     setCollapsed(data.collapsed);
     try {
-      await fetch(`${DB_URL}/tracker.json`, {
+      setSaveStatus("saving");
+      const resp = await fetch(`${DB_URL}/tracker.json`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus((s) => (s === "saved" ? "" : s)), 2000);
     } catch (e) {
       console.error("Save failed", e);
+      setSaveStatus("error");
     }
   };
 
@@ -476,9 +492,15 @@ function SephoraTracker() {
     const entry = { name, q: name };
     if (link && /^https?:\/\//i.test(link)) entry.url = link;
     const list = [...(custom[catName] || []), entry];
-    persist({ custom: { ...custom, [catName]: list }, updatedAt: touch(`${catName}::${name}`) });
+    const key = `${catName}::${name}`;
+    const changes = { custom: { ...custom, [catName]: list }, updatedAt: touch(key) };
+    if (newShade.trim()) changes.shades = { ...shades, [key]: newShade.trim() };
+    if (newNote.trim()) changes.notes = { ...notes, [key]: newNote.trim() };
+    persist(changes);
     setNewName("");
     setNewLink("");
+    setNewShade("");
+    setNewNote("");
     setAddingTo(null);
   };
 
@@ -776,15 +798,17 @@ function SephoraTracker() {
                               </button>
                             </span>
                           ) : (
-                            <span
-                              style={shades[key] ? styles.shadeText : styles.shadeAdd}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingShade(key);
-                                setShadeText(shades[key] || "");
-                              }}
-                            >
-                              {shades[key] ? `${shades[key]} ✎` : "+ add color"}
+                            <span style={styles.inlineRow}>
+                              <span
+                                style={shades[key] ? styles.shadeText : styles.shadeAdd}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingShade(key);
+                                  setShadeText(shades[key] || "");
+                                }}
+                              >
+                                {shades[key] ? `${shades[key]} ✎` : "+ add color"}
+                              </span>
                             </span>
                           )}
                           {editingNote === key ? (
@@ -808,15 +832,17 @@ function SephoraTracker() {
                               </button>
                             </span>
                           ) : (
-                            <span
-                              style={notes[key] ? styles.noteText : styles.shadeAdd}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingNote(key);
-                                setNoteText(notes[key] || "");
-                              }}
-                            >
-                              {notes[key] ? `📝 ${notes[key]} ✎` : "+ add note"}
+                            <span style={styles.inlineRow}>
+                              <span
+                                style={notes[key] ? styles.noteText : styles.shadeAdd}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingNote(key);
+                                  setNoteText(notes[key] || "");
+                                }}
+                              >
+                                {notes[key] ? `📝 ${notes[key]} ✎` : "+ add note"}
+                              </span>
                             </span>
                           )}
                           <span style={styles.statusHintInline}>
@@ -825,36 +851,33 @@ function SephoraTracker() {
                             {STATUS[s].label}
                           </span>
                         </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleStar(key);
-                          }}
-                          style={{ ...styles.starBtn, ...(stars[key] ? styles.starBtnActive : {}) }}
-                          aria-label={stars[key] ? `Unstar ${item.name}` : `Star ${item.name} as a top pick`}
-                        >
-                          {stars[key] ? "★" : "☆"}
-                        </button>
-                        <a
-                          href={item.url || sephoraUrl(item.q)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          style={styles.shopLink}
-                          aria-label={`Shop ${item.name} on Sephora`}
-                        >
-                          Shop ↗
-                        </a>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeProduct(cat.name, item);
-                          }}
-                          style={styles.removeBtn}
-                          aria-label={`Remove ${item.name}`}
-                        >
-                          ×
-                        </button>
+                        <div style={styles.actionCol} onClick={(e) => e.stopPropagation()}>
+                          <a
+                            href={item.url || sephoraUrl(item.q)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={styles.shopLink}
+                            aria-label={`Shop ${item.name} on Sephora`}
+                          >
+                            Shop ↗
+                          </a>
+                          <div style={styles.actionIcons}>
+                            <button
+                              onClick={() => toggleStar(key)}
+                              style={{ ...styles.starBtn, ...(stars[key] ? styles.starBtnActive : {}) }}
+                              aria-label={stars[key] ? `Unstar ${item.name}` : `Star ${item.name} as a top pick`}
+                            >
+                              {stars[key] ? "★" : "☆"}
+                            </button>
+                            <button
+                              onClick={() => removeProduct(cat.name, item)}
+                              style={styles.removeBtn}
+                              aria-label={`Remove ${item.name}`}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
@@ -875,6 +898,18 @@ function SephoraTracker() {
                           value={newLink}
                           onChange={(e) => setNewLink(e.target.value)}
                         />
+                        <input
+                          style={styles.addInput}
+                          placeholder="Color / shade (optional)"
+                          value={newShade}
+                          onChange={(e) => setNewShade(e.target.value)}
+                        />
+                        <input
+                          style={styles.addInput}
+                          placeholder="Note (optional)"
+                          value={newNote}
+                          onChange={(e) => setNewNote(e.target.value)}
+                        />
                         <div style={styles.addFormRow}>
                           <button style={styles.addConfirmBtn} onClick={() => addProduct(cat.name)}>
                             Add to {cat.name}
@@ -885,6 +920,8 @@ function SephoraTracker() {
                               setAddingTo(null);
                               setNewName("");
                               setNewLink("");
+                              setNewShade("");
+                              setNewNote("");
                             }}
                           >
                             Cancel
@@ -939,6 +976,18 @@ function SephoraTracker() {
           </div>
           <p style={styles.footnote}>Shared list — checkmarks save for everyone with the link. Tap sync to see the latest.</p>
         </main>
+      )}
+      {saveStatus && (
+        <div
+          style={{
+            ...styles.savePill,
+            ...(saveStatus === "error" ? styles.savePillError : {}),
+          }}
+        >
+          {saveStatus === "saving" && "Saving…"}
+          {saveStatus === "saved" && "Saved ✓"}
+          {saveStatus === "error" && "⚠️ Can't reach the database — changes aren't saving. Check the Firebase URL & rules."}
+        </div>
       )}
       {showTopBtn && (
         <button onClick={scrollToTop} style={styles.topBtn} aria-label="Back to top">
@@ -1106,7 +1155,7 @@ const styles = {
   },
   badgeWish: { borderColor: "#B98A4E", color: "#B98A4E" },
   badgeOwned: { borderColor: "#F5AFC3", background: "#F5AFC3", color: "#7A2E48" },
-  itemName: { flex: 1, fontSize: 14.5, lineHeight: 1.35, color: "#2B1B20" },
+  itemName: { flex: 1, minWidth: 0, fontSize: 14.5, lineHeight: 1.35, color: "#2B1B20", overflowWrap: "break-word" },
   statusHint: { fontSize: 10.5, color: "#B99AA3", letterSpacing: "0.04em", flexShrink: 0 },
   statusHintInline: {
     display: "block",
@@ -1116,7 +1165,7 @@ const styles = {
     marginTop: 2,
   },
   shadeText: {
-    display: "block",
+    display: "inline-block",
     fontSize: 12.5,
     fontWeight: 700,
     color: "#9C4A63",
@@ -1124,7 +1173,7 @@ const styles = {
     cursor: "pointer",
   },
   shadeAdd: {
-    display: "block",
+    display: "inline-block",
     fontSize: 11.5,
     color: "#C9AEB4",
     marginTop: 3,
@@ -1148,7 +1197,7 @@ const styles = {
     outline: "none",
   },
   noteText: {
-    display: "block",
+    display: "inline-block",
     fontSize: 12,
     color: "#7A5E66",
     marginTop: 3,
@@ -1156,6 +1205,38 @@ const styles = {
     fontStyle: "italic",
   },
   caret: { marginLeft: 8, fontSize: 12, color: "#C9AEB4" },
+  inlineRow: { display: "block" },
+  actionCol: {
+    flexShrink: 0,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 6,
+  },
+  actionIcons: { display: "flex", gap: 6 },
+  savePill: {
+    position: "fixed",
+    bottom: 18,
+    left: "50%",
+    transform: "translateX(-50%)",
+    zIndex: 30,
+    maxWidth: "86vw",
+    padding: "9px 16px",
+    background: "#FBD5DF",
+    border: "1px solid #F5AFC3",
+    borderRadius: 999,
+    color: "#7A2E48",
+    fontSize: 12.5,
+    fontWeight: 700,
+    fontFamily: "'Karla', sans-serif",
+    boxShadow: "0 3px 10px rgba(154, 74, 99, 0.25)",
+    textAlign: "center",
+  },
+  savePillError: {
+    background: "#FDECEA",
+    border: "1px solid #E8A2A2",
+    color: "#8C2F2F",
+  },
   changedDot: { marginLeft: 8, fontSize: 10, color: "#C4385B", verticalAlign: "middle" },
   starBtn: {
     flexShrink: 0,
