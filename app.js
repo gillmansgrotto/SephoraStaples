@@ -585,6 +585,7 @@ function SephoraTracker() {
         return () => window.removeEventListener("scroll", onScroll);
     }, []);
     const jumpToSection = (catName) => {
+        setFilter("all");
         setCollapsed((prev) => ({ ...prev, [catName]: false }));
         setSectionQuery("");
         setTimeout(() => {
@@ -961,7 +962,10 @@ function SephoraTracker() {
                                             setNewNote("");
                                         } }, "Cancel")))) : (React.createElement("button", { style: styles.addRowBtn, onClick: () => setAddingTo(cat.name) }, "+ Add a product")))))));
                 }),
-                filter !== "all" && ownedCount === 0 && wishCount === 0 && (React.createElement("p", { style: styles.empty }, "Nothing tracked yet \u2014 tap any item to start.")),
+                filter !== "all" && allItems.filter((k) => visible(k)).length === 0 && (React.createElement("p", { style: styles.empty },
+                    filter === "wishlist" && "Nothing on the Want to Get list yet — tap any product once to heart it ♡",
+                    filter === "owned" && "Nothing in the makeup bag yet — tap a product twice to add it 👛",
+                    filter === "starred" && "No Top Picks yet — tap the ☆ on a favorite to crown it ★")),
                 React.createElement("div", { style: styles.bottomCard },
                     React.createElement("div", { style: styles.bottomActions },
                         React.createElement("button", { onClick: copyWishlist, style: styles.syncBtn }, copied ? "Copied! 💕" : "Copy Tap-to-Get list 📋"),
@@ -975,9 +979,9 @@ function SephoraTracker() {
                             "Restore removed products (",
                             removed.length,
                             ")")),
-                        React.createElement("button", { onClick: reset, style: styles.resetBtn }, confirmingReset ? "Tap again to clear everything" : "Clear all"),
-                        React.createElement("button", { onClick: () => setAddingCategory(true), style: styles.resetBtn }, "Add Category \u2795")),
-                    addingCategory && (React.createElement("div", { style: { ...styles.addForm, marginTop: 12 } },
+                        filter === "all" && (React.createElement("button", { onClick: reset, style: styles.resetBtn }, confirmingReset ? "Tap again to clear everything" : "Clear all")),
+                        filter === "all" && (React.createElement("button", { onClick: () => setAddingCategory(true), style: styles.resetBtn }, "Add Category \u2795"))),
+                    filter === "all" && addingCategory && (React.createElement("div", { style: { ...styles.addForm, marginTop: 12 } },
                         React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Category name (e.g. Nails)", value: newCatName, onChange: (e) => setNewCatName(e.target.value), onKeyDown: (e) => {
                                 if (e.key === "Enter")
                                     addCategory();
