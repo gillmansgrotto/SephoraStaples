@@ -257,6 +257,10 @@ function SephoraTracker() {
     const [newLink, setNewLink] = useState("");
     const [newShade, setNewShade] = useState("");
     const [newNote, setNewNote] = useState("");
+    const [customCats, setCustomCats] = useState([]); // user-created category names
+    const [dbReady, setDbReady] = useState(false); // true only after a successful read
+    const [addingCategory, setAddingCategory] = useState(false);
+    const [newCatName, setNewCatName] = useState("");
     const [shades, setShades] = useState({}); // { [itemKey]: "shade / color text" }
     const [editingShade, setEditingShade] = useState(null); // itemKey being edited
     const [shadeText, setShadeText] = useState("");
@@ -264,6 +268,9 @@ function SephoraTracker() {
     const [notes, setNotes] = useState({}); // { [itemKey]: "note text" }
     const [editingNote, setEditingNote] = useState(null);
     const [noteText, setNoteText] = useState("");
+    const [names, setNames] = useState({}); // { [itemKey]: "renamed display name" }
+    const [editingName, setEditingName] = useState(null);
+    const [nameText, setNameText] = useState("");
     const [updatedAt, setUpdatedAt] = useState({}); // { [itemKey]: timestamp }
     const [changedKeys, setChangedKeys] = useState([]); // keys changed since this device last looked
     const [collapsed, setCollapsed] = useState({}); // { [catName]: true }
@@ -308,15 +315,19 @@ function SephoraTracker() {
         let shadeMap = {};
         let starMap = {};
         let noteMap = {};
+        let nameMap = {};
         let updatedMap = {};
         let collapsedMap = null;
+        let customCatsList = [];
         let readOk = false;
+        let hadData = false;
         let seeded = false;
         let seededV2 = false;
         try {
             const resp = await fetch(`${DB_URL}/tracker.json`);
             readOk = resp.ok;
             const raw = resp.ok ? await resp.json() : null;
+            hadData = raw !== null && raw !== undefined;
             const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
             if (parsed) {
                 if (parsed && parsed.statuses) {
@@ -326,14 +337,16 @@ function SephoraTracker() {
                     shadeMap = parsed.shades || {};
                     starMap = parsed.stars || {};
                     noteMap = parsed.notes || {};
+                    nameMap = parsed.names || {};
                     updatedMap = parsed.updatedAt || {};
                     collapsedMap = parsed.collapsed || null;
+                    customCatsList = parsed.customCats || [];
                     seeded = parsed.seeded === true;
                     seededV2 = parsed.seededV2 === true;
                 }
-                else {
+                else if (parsed && typeof parsed === "object") {
                     // legacy format: plain status map
-                    statuses = parsed || {};
+                    statuses = parsed;
                 }
             }
         }
@@ -344,6 +357,7 @@ function SephoraTracker() {
             setSaveStatus("error");
         }
         else {
+            setDbReady(true);
             setSaveStatus("");
         }
         if (!seeded) {
@@ -388,13 +402,17 @@ function SephoraTracker() {
         setShades(shadeMap);
         setStars(starMap);
         setNotes(noteMap);
+        setNames(nameMap);
         setUpdatedAt(updatedMap);
+        setCustomCats(customCatsList);
         if (collapsedMap && Object.keys(collapsedMap).length > 0) {
             setCollapsed(collapsedMap);
             setCollapsedInit(true);
         }
         setLoaded(true);
-        if (readOk && (!seeded || !seededV2)) {
+        // Seed ONLY into an empty database — never overwrite existing data,
+        // even if this build failed to parse it.
+        if (readOk && !hadData) {
             try {
                 await fetch(`${DB_URL}/tracker.json`, {
                     method: "PUT",
@@ -411,6 +429,10 @@ function SephoraTracker() {
         loadShared();
     }, []);
     const persist = async (changes) => {
+        if (!dbReady) {
+            setSaveStatus("error");
+            return;
+        }
         const data = {
             statuses: changes.statuses !== undefined ? changes.statuses : state,
             custom: changes.custom !== undefined ? changes.custom : custom,
@@ -418,8 +440,10 @@ function SephoraTracker() {
             shades: changes.shades !== undefined ? changes.shades : shades,
             stars: changes.stars !== undefined ? changes.stars : stars,
             notes: changes.notes !== undefined ? changes.notes : notes,
+            names: changes.names !== undefined ? changes.names : names,
             updatedAt: changes.updatedAt !== undefined ? changes.updatedAt : updatedAt,
             collapsed: changes.collapsed !== undefined ? changes.collapsed : collapsed,
+            customCats: changes.customCats !== undefined ? changes.customCats : customCats,
             seeded: true,
             seededV2: true,
         };
@@ -429,8 +453,10 @@ function SephoraTracker() {
         setShades(data.shades);
         setStars(data.stars);
         setNotes(data.notes);
+        setNames(data.names);
         setUpdatedAt(data.updatedAt);
         setCollapsed(data.collapsed);
+        setCustomCats(data.customCats);
         try {
             setSaveStatus("saving");
             const resp = await fetch(`${DB_URL}/tracker.json`, {
@@ -474,6 +500,17 @@ function SephoraTracker() {
         persist({ notes: nextNotes, updatedAt: touch(key) });
         setEditingNote(null);
         setNoteText("");
+    };
+    const saveName = (key, originalName) => {
+        const text = nameText.trim();
+        const nextNames = { ...names };
+        if (text && text !== originalName)
+            nextNames[key] = text;
+        else
+            delete nextNames[key];
+        persist({ names: nextNames, updatedAt: touch(key) });
+        setEditingName(null);
+        setNameText("");
     };
     const toggleStar = (key) => {
         const next = { ...stars };
@@ -522,7 +559,9 @@ function SephoraTracker() {
         delete nextStars[key];
         const nextNotes = { ...notes };
         delete nextNotes[key];
-        const base = { statuses: nextStatuses, shades: nextShades, stars: nextStars, notes: nextNotes, updatedAt: touch(key) };
+        const nextNames = { ...names };
+        delete nextNames[key];
+        const base = { statuses: nextStatuses, shades: nextShades, stars: nextStars, notes: nextNotes, names: nextNames, updatedAt: touch(key) };
         if (item.isCustom) {
             const list = (custom[catName] || []).filter((i) => i.name !== item.name);
             const nextCustom = { ...custom, [catName]: list };
@@ -559,11 +598,11 @@ function SephoraTracker() {
     };
     const copyWishlist = async () => {
         const lines = [];
-        ORDERED_CATEGORIES.forEach((cat) => {
+        allCats.forEach((cat) => {
             const wanted = itemsFor(cat).filter((i) => state[`${cat.name}::${i.name}`] === 1);
             wanted.forEach((i) => {
                 const key = `${cat.name}::${i.name}`;
-                let line = `• ${i.name} (${cat.name})`;
+                let line = `• ${names[key] || i.name} (${cat.name})`;
                 if (shades[key])
                     line += ` — shade: ${shades[key]}`;
                 if (notes[key])
@@ -598,11 +637,15 @@ function SephoraTracker() {
         ...cat.items.filter((i) => !removed.includes(`${cat.name}::${i.name}`)),
         ...(custom[cat.name] || []).map((i) => ({ ...i, isCustom: true })),
     ];
+    const allCats = [
+        ...ORDERED_CATEGORIES,
+        ...customCats.map((n) => ({ name: n, items: [], isCustomCat: true })),
+    ];
     useEffect(() => {
         if (!loaded || collapsedInit)
             return;
         const init = {};
-        ORDERED_CATEGORIES.forEach((cat) => {
+        allCats.forEach((cat) => {
             const hasActivity = itemsFor(cat).some((i) => {
                 const key = `${cat.name}::${i.name}`;
                 return state[key] || shades[key] || notes[key] || stars[key];
@@ -612,9 +655,42 @@ function SephoraTracker() {
         setCollapsed(init);
         setCollapsedInit(true);
     }, [loaded]);
+    const addCategory = () => {
+        const name = newCatName.trim();
+        setNewCatName("");
+        setAddingCategory(false);
+        if (!name)
+            return;
+        const exists = customCats.some((n) => n.toLowerCase() === name.toLowerCase()) ||
+            ORDERED_CATEGORIES.some((c) => c.name.toLowerCase() === name.toLowerCase());
+        if (exists)
+            return;
+        persist({ customCats: [...customCats, name] });
+    };
+    const removeCategory = (catName) => {
+        const prefix = `${catName}::`;
+        const clean = (obj) => {
+            const o = { ...obj };
+            Object.keys(o).forEach((k) => {
+                if (k.startsWith(prefix))
+                    delete o[k];
+            });
+            return o;
+        };
+        const nextCustom = { ...custom };
+        delete nextCustom[catName];
+        persist({
+            customCats: customCats.filter((n) => n !== catName),
+            custom: nextCustom,
+            statuses: clean(state),
+            shades: clean(shades),
+            notes: clean(notes),
+            stars: clean(stars),
+        });
+    };
     const setAllCollapsed = (value) => {
         const next = {};
-        ORDERED_CATEGORIES.forEach((c) => {
+        allCats.forEach((c) => {
             next[c.name] = value;
         });
         setCollapsedInit(true);
@@ -624,7 +700,7 @@ function SephoraTracker() {
         const next = { ...collapsed, [catName]: !collapsed[catName] };
         persist({ collapsed: next });
     };
-    const allItems = CATEGORIES.flatMap((c) => itemsFor(c).map((i) => `${c.name}::${i.name}`));
+    const allItems = allCats.flatMap((c) => itemsFor(c).map((i) => `${c.name}::${i.name}`));
     const ownedCount = allItems.filter((k) => state[k] === 2).length;
     const wishCount = allItems.filter((k) => state[k] === 1).length;
     const starCount = allItems.filter((k) => stars[k]).length;
@@ -641,8 +717,9 @@ function SephoraTracker() {
     };
     const q = sectionQuery.trim().toLowerCase();
     const sectionMatches = q
-        ? ORDERED_CATEGORIES.filter((c) => c.name.toLowerCase().includes(q) ||
-            itemsFor(c).some((i) => i.name.toLowerCase().includes(q))).slice(0, 5)
+        ? allCats.filter((c) => c.name.toLowerCase().includes(q) ||
+            itemsFor(c).some((i) => i.name.toLowerCase().includes(q) ||
+                (names[`${c.name}::${i.name}`] || "").toLowerCase().includes(q))).slice(0, 5)
         : [];
     return (React.createElement("div", { style: styles.page },
         React.createElement("div", { style: styles.inner },
@@ -689,7 +766,7 @@ function SephoraTracker() {
                 React.createElement("div", { style: styles.meterStats },
                     allItems.length,
                     " potential additions \u00B7 ",
-                    CATEGORIES.length,
+                    allCats.length,
                     " categories"),
                 React.createElement("div", { style: styles.meterLabelRow },
                     React.createElement("span", { style: styles.meterLabel },
@@ -742,8 +819,9 @@ function SephoraTracker() {
                             "- Hit ",
                             React.createElement("b", null, "Refresh List \u2191"),
                             " to see each other's latest changes"),
+                        React.createElement("p", { style: { ...styles.helpLine, fontStyle: "italic", color: "#D2688A", textAlign: "center", marginTop: 8 } }, "And obviously there is nothing basic about you as you are the best ever."),
                         React.createElement("button", { style: styles.helpGotIt, onClick: dismissHelp }, "Got it \uD83D\uDC8B"))))),
-                ORDERED_CATEGORIES.map((cat, ci) => {
+                allCats.map((cat, ci) => {
                     const items = [...itemsFor(cat)].sort((a, b) => ((state[`${cat.name}::${b.name}`] || 0) === 2 ? 1 : 0) -
                         ((state[`${cat.name}::${a.name}`] || 0) === 2 ? 1 : 0));
                     const keys = items.map((i) => `${cat.name}::${i.name}`);
@@ -766,9 +844,13 @@ function SephoraTracker() {
                                 React.createElement("span", { style: styles.stepNum }, String(ci + 1).padStart(2, "0")),
                                 cat.name,
                                 catHasChanges && React.createElement("span", { style: styles.changedDot, title: "Updated since your last visit" }, "\u25CF")),
-                            React.createElement("span", { style: styles.catCount },
+                            React.createElement("span", { style: { ...styles.catCount, display: "flex", alignItems: "center", gap: 8 } },
                                 catLabel,
-                                React.createElement("span", { style: styles.caret }, isCollapsed ? "▸" : "▾"))),
+                                React.createElement("span", { style: styles.caret }, isCollapsed ? "▸" : "▾"),
+                                cat.isCustomCat && (React.createElement("button", { onClick: (e) => {
+                                        e.stopPropagation();
+                                        removeCategory(cat.name);
+                                    }, style: styles.removeBtn, "aria-label": `Remove ${cat.name} category` }, "\u00D7")))),
                         !isCollapsed && (React.createElement("div", { className: "cat-body" },
                             items.map((item) => {
                                 const key = `${cat.name}::${item.name}`;
@@ -776,6 +858,8 @@ function SephoraTracker() {
                                     return null;
                                 const s = state[key] || 0;
                                 return (React.createElement("div", { key: key, onClick: () => cycle(key), role: "button", tabIndex: 0, onKeyDown: (e) => {
+                                        if (e.target !== e.currentTarget)
+                                            return;
                                         if (e.key === "Enter" || e.key === " ")
                                             cycle(key);
                                     }, style: {
@@ -790,7 +874,20 @@ function SephoraTracker() {
                                             ...styles.itemName,
                                             ...(s === 2 ? { opacity: 0.7 } : {}),
                                         } },
-                                        item.name,
+                                        editingName === key ? (React.createElement("span", { style: styles.shadeEditWrap, onClick: (e) => e.stopPropagation() },
+                                            React.createElement("input", { className: "small-ph", style: styles.shadeInput, placeholder: "Product name", value: nameText, onChange: (e) => setNameText(e.target.value), onKeyDown: (e) => {
+                                                    if (e.key === "Enter")
+                                                        saveName(key, item.name);
+                                                    if (e.key === "Escape") {
+                                                        setEditingName(null);
+                                                        setNameText("");
+                                                    }
+                                                }, autoFocus: true }),
+                                            React.createElement("button", { style: styles.shadeSaveBtn, onClick: () => saveName(key, item.name) }, "Save"))) : (React.createElement("span", { style: { cursor: "pointer" }, title: "Tap to rename", onClick: (e) => {
+                                                e.stopPropagation();
+                                                setEditingName(key);
+                                                setNameText(names[key] || item.name);
+                                            } }, names[key] || item.name)),
                                         editingShade === key ? (React.createElement("span", { style: styles.shadeEditWrap, onClick: (e) => e.stopPropagation() },
                                             React.createElement("input", { className: "small-ph", style: styles.shadeInput, placeholder: "Type the color or shade name, then hit Save", value: shadeText, onChange: (e) => setShadeText(e.target.value), onKeyDown: (e) => {
                                                     if (e.key === "Enter")
@@ -860,8 +957,20 @@ function SephoraTracker() {
                             "Restore removed products (",
                             removed.length,
                             ")")),
-                        React.createElement("button", { onClick: reset, style: styles.resetBtn }, confirmingReset ? "Tap again to clear everything" : "Clear all"))),
-                React.createElement("p", { style: styles.dedication }, "Sephora Staples is dedicated & devoted to Strudel, who not only deserves everything on this list but deserves the best in life for eternity. \uD83D\uDC9A - T"))),
+                        React.createElement("button", { onClick: reset, style: styles.resetBtn }, confirmingReset ? "Tap again to clear everything" : "Clear all"),
+                        React.createElement("button", { onClick: () => setAddingCategory(true), style: styles.resetBtn }, "Add Category \u2795")),
+                    addingCategory && (React.createElement("div", { style: { ...styles.addForm, marginTop: 12 } },
+                        React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Category name (e.g. Nails)", value: newCatName, onChange: (e) => setNewCatName(e.target.value), onKeyDown: (e) => {
+                                if (e.key === "Enter")
+                                    addCategory();
+                            }, autoFocus: true }),
+                        React.createElement("div", { style: styles.addFormRow },
+                            React.createElement("button", { style: styles.addConfirmBtn, onClick: addCategory }, "Add Category"),
+                            React.createElement("button", { style: styles.addCancelBtn, onClick: () => {
+                                    setAddingCategory(false);
+                                    setNewCatName("");
+                                } }, "Cancel"))))),
+                React.createElement("p", { style: styles.dedication }, "Sephora Staples is dedicated & devoted to beloved Strudel. She does not need any product on this list to be the most beautiful person in the world. Yet she deserves everything on Sephora Staples and deserves the best in life for all of eternity. \uD83D\uDC9A - T"))),
             saveStatus && (React.createElement("div", { style: {
                     ...styles.savePill,
                     ...(saveStatus === "error" ? styles.savePillError : {}),
@@ -1371,7 +1480,7 @@ const styles = {
         fontFamily: "'Cormorant Garamond', serif",
         fontStyle: "italic",
         fontWeight: 500,
-        fontSize: 16,
+        fontSize: 18.5,
         color: "#D2688A",
         textAlign: "center",
         lineHeight: 1.6,
