@@ -1018,7 +1018,7 @@ function SephoraTracker() {
                                     setNewCatName("");
                                 } }, "Cancel"))))),
                 React.createElement("p", { style: styles.dedication },
-                    "Sephora Staples is dedicated & devoted to beloved Strudel. She does not need any product on this list to be the most beautiful person in the universe. Yet she will always deserve everything on Sephora Staples and to have the best in life for all of eternity.",
+                    "Sephora Staples is dedicated & devoted to beloved Strudel. She needs nothing on this list to be the most beautiful person in the universe \u2014 yet she deserves everything on it, and the best of everything in life, for all of eternity.",
                     React.createElement("span", { style: { display: "block", marginTop: 10 } }, "\uD83D\uDC9A - T")))),
             saveStatus && (React.createElement("div", { style: {
                     ...styles.savePill,
