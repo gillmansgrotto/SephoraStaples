@@ -276,6 +276,17 @@ function SephoraTracker() {
     const [collapsed, setCollapsed] = useState({}); // { [catName]: true }
     const [collapsedInit, setCollapsedInit] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+    const [refreshed, setRefreshed] = useState(false);
+    const handleRefresh = async () => {
+        if (refreshing)
+            return;
+        setRefreshing(true);
+        await loadShared();
+        setRefreshing(false);
+        setRefreshed(true);
+        setTimeout(() => setRefreshed(false), 1600);
+    };
     const [saveStatus, setSaveStatus] = useState(""); // "" | saving | saved | error
     const [showHelp, setShowHelp] = useState(() => {
         try {
@@ -985,7 +996,9 @@ function SephoraTracker() {
                             React.createElement("p", { style: styles.footnote }, "Couldn't reach the clipboard \u2014 long-press to copy from here:"),
                             React.createElement("textarea", { style: styles.copyFallbackBox, readOnly: true, value: copyFallback, onFocus: (e) => e.target.select() }),
                             React.createElement("button", { style: styles.resetBtn, onClick: () => setCopyFallback("") }, "Close"))),
-                        React.createElement("button", { onClick: loadShared, style: styles.syncBtn }, "Refresh List \u2191"),
+                        React.createElement("button", { onClick: handleRefresh, style: styles.syncBtn }, refreshing ? (React.createElement("span", null,
+                            React.createElement("span", { className: "spin" }, "\u27F3"),
+                            " Refreshing\u2026")) : refreshed ? ("Refreshed ✓") : ("Refresh List ↑")),
                         React.createElement("button", { onClick: scrollToTop, style: styles.resetBtn }, "Back to top \u2191"),
                         removed.length > 0 && (React.createElement("button", { onClick: restoreRemoved, style: styles.resetBtn },
                             "Restore removed products (",
@@ -1165,12 +1178,11 @@ const styles = {
         fontSize: 13,
         fontWeight: 700,
         fontFamily: "'Karla', sans-serif",
-        background: "#FFFFFF",
+        background: "#FBD5DF",
         color: "#9C4A63",
         border: "1px solid #F5AFC3",
         borderRadius: 999,
         cursor: "pointer",
-        boxShadow: "0 1px 3px rgba(154, 74, 99, 0.08)",
         outline: "none",
         WebkitTapHighlightColor: "rgba(245, 175, 195, 0.35)",
         WebkitAppearance: "none",

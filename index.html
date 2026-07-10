@@ -31,6 +31,8 @@
   button:focus-visible { outline: 2px solid #F5AFC3; outline-offset: 2px; }
   [role="button"]:focus-visible { outline: 2px solid #F5AFC3; outline-offset: 2px; }
   .cat-body { animation: rosySlide 0.18s ease; }
+  .spin { display: inline-block; animation: roseSpin 0.8s linear infinite; }
+  @keyframes roseSpin { to { transform: rotate(360deg); } }
   .jump-input::placeholder { font-size: 11px; color: #A87B87; }
   .jump-input::-webkit-input-placeholder { font-size: 11px; color: #A87B87; }
   .small-ph::placeholder { font-size: 11.5px; color: #A87B87; }
@@ -43,6 +45,6 @@
 </head>
 <body>
 <div id="root"></div>
-<script src="/app.js?v=1783723726" defer></script>
+<script src="/app.js?v=1783724107" defer></script>
 </body>
 </html>
