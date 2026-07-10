@@ -666,11 +666,12 @@ function SephoraTracker() {
                             : {}),
                     } }, label)))),
                 React.createElement("div", { style: styles.jumpRow },
-                    React.createElement("input", { className: "jump-input", style: styles.jumpInput, placeholder: "\uD83D\uDD0D Jump to Staple Section", value: sectionQuery, onChange: (e) => setSectionQuery(e.target.value), onKeyDown: (e) => {
-                            if (e.key === "Enter" && sectionMatches.length > 0)
-                                jumpToSection(sectionMatches[0].name);
-                        } }),
-                    React.createElement("button", { onClick: loadShared, style: styles.syncBtnTop }, "Refresh List \u2191")),
+                    React.createElement("div", { style: styles.jumpFieldWrap },
+                        React.createElement("span", { style: styles.jumpIcon }, "\uD83D\uDD0D"),
+                        React.createElement("input", { className: "jump-input", style: styles.jumpInput, placeholder: "Jump to Staple Section", value: sectionQuery, onChange: (e) => setSectionQuery(e.target.value), onKeyDown: (e) => {
+                                if (e.key === "Enter" && sectionMatches.length > 0)
+                                    jumpToSection(sectionMatches[0].name);
+                            } }))),
                 sectionMatches.length > 0 && (React.createElement("div", { style: styles.jumpChips }, sectionMatches.map((c) => (React.createElement("button", { key: c.name, style: styles.jumpChip, onClick: () => jumpToSection(c.name) }, c.name))))),
                 React.createElement("div", { style: styles.bulkRow },
                     React.createElement("button", { style: styles.bulkBtn, onClick: () => setAllCollapsed(true) }, "Collapse all \u25B8"),
@@ -698,7 +699,7 @@ function SephoraTracker() {
                         " in Rose's Makeup Bag"),
                     React.createElement("span", { style: { ...styles.meterLabel, color: "#9E7238" } },
                         wishCount,
-                        " tap to get")),
+                        " Want to Get")),
                 React.createElement("div", { style: styles.meterTube, "aria-label": `Progress: ${pct}%` },
                     React.createElement("div", { style: { ...styles.meterFill, width: `${Math.max(pct, 2)}%` } }),
                     React.createElement("div", { style: { ...styles.meterTip, left: `calc(${Math.max(pct, 2)}% - 7px)` } }))),
@@ -792,7 +793,7 @@ function SephoraTracker() {
                                         } },
                                         item.name,
                                         editingShade === key ? (React.createElement("span", { style: styles.shadeEditWrap, onClick: (e) => e.stopPropagation() },
-                                            React.createElement("input", { style: styles.shadeInput, placeholder: "Type the color or shade name, then hit Save", value: shadeText, onChange: (e) => setShadeText(e.target.value), onKeyDown: (e) => {
+                                            React.createElement("input", { className: "small-ph", style: styles.shadeInput, placeholder: "Type the color or shade name, then hit Save", value: shadeText, onChange: (e) => setShadeText(e.target.value), onKeyDown: (e) => {
                                                     if (e.key === "Enter")
                                                         saveShade(key);
                                                     if (e.key === "Escape") {
@@ -807,7 +808,7 @@ function SephoraTracker() {
                                                     setShadeText(shades[key] || "");
                                                 } }, shades[key] ? `${shades[key]} ✎` : "+ add color"))),
                                         editingNote === key ? (React.createElement("span", { style: styles.shadeEditWrap, onClick: (e) => e.stopPropagation() },
-                                            React.createElement("input", { style: styles.shadeInput, placeholder: 'Type a note — like "wants the mini size" — then hit Save', value: noteText, onChange: (e) => setNoteText(e.target.value), onKeyDown: (e) => {
+                                            React.createElement("input", { className: "small-ph", style: styles.shadeInput, placeholder: 'Type a note — like "wants the mini size" — then hit Save', value: noteText, onChange: (e) => setNoteText(e.target.value), onKeyDown: (e) => {
                                                     if (e.key === "Enter")
                                                         saveNote(key);
                                                     if (e.key === "Escape") {
@@ -830,10 +831,10 @@ function SephoraTracker() {
                                         changedKeys.includes(key) && (React.createElement("span", { style: styles.actionUpdated }, "\u25CF Updated")))));
                             }),
                             filter === "all" && (addingTo === cat.name ? (React.createElement("div", { style: styles.addForm, onClick: (e) => e.stopPropagation() },
-                                React.createElement("input", { style: styles.addInput, placeholder: "Product name", value: newName, onChange: (e) => setNewName(e.target.value), autoFocus: true }),
-                                React.createElement("input", { style: styles.addInput, placeholder: "Product link (optional)", value: newLink, onChange: (e) => setNewLink(e.target.value) }),
-                                React.createElement("input", { style: styles.addInput, placeholder: "Color / shade (optional)", value: newShade, onChange: (e) => setNewShade(e.target.value) }),
-                                React.createElement("input", { style: styles.addInput, placeholder: "Note (optional)", value: newNote, onChange: (e) => setNewNote(e.target.value) }),
+                                React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Product name", value: newName, onChange: (e) => setNewName(e.target.value), autoFocus: true }),
+                                React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Product link (optional)", value: newLink, onChange: (e) => setNewLink(e.target.value) }),
+                                React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Color / shade (optional)", value: newShade, onChange: (e) => setNewShade(e.target.value) }),
+                                React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Note (optional)", value: newNote, onChange: (e) => setNewNote(e.target.value) }),
                                 React.createElement("div", { style: styles.addFormRow },
                                     React.createElement("button", { style: styles.addConfirmBtn, onClick: () => addProduct(cat.name) },
                                         "Add to ",
@@ -1279,10 +1280,19 @@ const styles = {
     loading: { textAlign: "center", color: "#7A5E66", fontSize: 14 },
     empty: { textAlign: "center", color: "#7A5E66", fontSize: 14, padding: "24px 0" },
     jumpRow: { display: "flex", gap: 8, margin: "0 0 0" },
+    jumpFieldWrap: { position: "relative", flex: 1, minWidth: 0, display: "flex" },
+    jumpIcon: {
+        position: "absolute",
+        left: 14,
+        top: "50%",
+        transform: "translateY(-50%)",
+        fontSize: 13,
+        pointerEvents: "none",
+    },
     jumpInput: {
         flex: 1,
         minWidth: 0,
-        padding: "9px 14px",
+        padding: "9px 14px 9px 38px",
         border: "1px solid #F5D8E0",
         borderRadius: 999,
         fontSize: 16,
