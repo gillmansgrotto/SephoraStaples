@@ -992,7 +992,9 @@ function SephoraTracker() {
                                     setAddingCategory(false);
                                     setNewCatName("");
                                 } }, "Cancel"))))),
-                React.createElement("p", { style: styles.dedication }, "Sephora Staples is dedicated & devoted to beloved Strudel. She does not need any product on this list to be the most beautiful person in the world. Yet she deserves everything on Sephora Staples and deserves the best in life for all of eternity. \uD83D\uDC9A - T"))),
+                React.createElement("p", { style: styles.dedication },
+                    "Sephora Staples is dedicated & devoted to beloved Strudel. She does not need any product on this list to be the most beautiful person in the world. Yet she deserves everything on Sephora Staples and deserves the best in life for all of eternity.",
+                    React.createElement("span", { style: { display: "block", marginTop: 10 } }, "\uD83D\uDC9A - T")))),
             saveStatus && (React.createElement("div", { style: {
                     ...styles.savePill,
                     ...(saveStatus === "error" ? styles.savePillError : {}),
