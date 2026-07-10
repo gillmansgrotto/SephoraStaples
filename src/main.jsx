@@ -1,32 +1,5 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Rose's Sephora Staples</title>
-<meta name="theme-color" content="#F5AFC3" />
-<meta property="og:title" content="Rose's Sephora Staples 💄" />
-<meta property="og:description" content="Because she deserves the best of everything" />
-<meta property="og:type" content="website" />
-<meta property="og:image" content="https://sephora-staples.vercel.app/og.png" />
-<meta property="og:image:width" content="1200" />
-<meta property="og:image:height" content="630" />
-<meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:image" content="https://sephora-staples.vercel.app/og.png" />
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💄</text></svg>" />
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Karla:wght@400;500;700&display=swap" rel="stylesheet" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
-<style>
-  html, body { margin: 0; padding: 0; }
-  *, *::before, *::after { box-sizing: border-box; }
-</style>
-</head>
-<body>
-<div id="root"></div>
-<script type="text/babel" data-presets="react">
-const { useState, useEffect } = React;
+import { useState, useEffect } from "react";
+import { createRoot } from "react-dom/client";
 
 // ---- Data ----------------------------------------------------------------
 const CATEGORIES = [
@@ -268,7 +241,7 @@ const STORAGE_KEY = "sephora-tracker-v1";
 // Status cycle: 0 = untracked, 1 = wishlist, 2 = got it
 const STATUS = {
   0: { label: "Tap to track", short: "—" },
-  1: { label: "Want to get", short: "♡" },
+  1: { label: "Tap to get", short: "♡" },
   2: { label: "In makeup bag", short: "✓" },
 };
 
@@ -307,6 +280,22 @@ function SephoraTracker() {
   const [collapsedInit, setCollapsedInit] = useState(false);
   const [copied, setCopied] = useState(false);
   const [saveStatus, setSaveStatus] = useState(""); // "" | saving | saved | error
+  const [showHelp, setShowHelp] = useState(() => {
+    try {
+      return localStorage.getItem("rose-help-dismissed") !== "1";
+    } catch (e) {
+      return true;
+    }
+  });
+
+  const [helpCollapsed, setHelpCollapsed] = useState(false);
+
+  const dismissHelp = () => {
+    setShowHelp(false);
+    try {
+      localStorage.setItem("rose-help-dismissed", "1");
+    } catch (e) {}
+  };
   const [copyFallback, setCopyFallback] = useState("");
 
   const loadShared = async () => {
@@ -567,8 +556,8 @@ function SephoraTracker() {
       });
     });
     const text = lines.length
-      ? `Rose's Sephora Want-to-Get list:\n${lines.join("\n")}`
-      : "Nothing on the Want-to-Get list yet.";
+      ? `Rose's Sephora Tap-to-Get list:\n${lines.join("\n")}`
+      : "Nothing on the Tap-to-Get list yet.";
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -606,6 +595,15 @@ function SephoraTracker() {
     setCollapsed(init);
     setCollapsedInit(true);
   }, [loaded]);
+
+  const setAllCollapsed = (value) => {
+    const next = {};
+    ORDERED_CATEGORIES.forEach((c) => {
+      next[c.name] = value;
+    });
+    setCollapsedInit(true);
+    persist({ collapsed: next });
+  };
 
   const toggleCollapse = (catName) => {
     const next = { ...collapsed, [catName]: !collapsed[catName] };
@@ -648,14 +646,14 @@ function SephoraTracker() {
         <div style={styles.eyebrow}>ROSE KELLEY'S</div>
         <h1 style={styles.title}>Sephora Staples</h1>
         <p style={styles.tagline}>Because she deserves the best of everything</p>
-        <p style={styles.subtitle}>{allItems.length} potential additions · {CATEGORIES.length} categories · tap once for want to get ♡, twice for in makeup bag ✓</p>
+        <p style={styles.subtitle}>{allItems.length} potential additions · {CATEGORIES.length} categories</p>
       </header>
 
       {/* Lipstick progress meter — the signature */}
       <div style={styles.meterWrap}>
         <div style={styles.meterLabelRow}>
           <span style={styles.meterLabel}>{ownedCount} of {allItems.length} in makeup bag</span>
-          <span style={{ ...styles.meterLabel, color: "#B98A4E" }}>{wishCount} want to get</span>
+          <span style={{ ...styles.meterLabel, color: "#9E7238" }}>{wishCount} tap to get</span>
         </div>
         <div style={styles.meterTube} aria-label={`Progress: ${pct}%`}>
           <div style={{ ...styles.meterFill, width: `${Math.max(pct, 2)}%` }} />
@@ -663,10 +661,11 @@ function SephoraTracker() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Sticky control bar */}
+      <div style={styles.stickyBar}>
       <div style={styles.filterRow} role="tablist">
         {[
-          ["all", "Staples"],
+          ["all", "Staples 💋"],
           ["wishlist", `Want to Get ♡${wishCount ? ` (${wishCount})` : ""}`],
           ["owned", `In Makeup Bag 🛍️${ownedCount ? ` (${ownedCount})` : ""}`],
           ["starred", `Top Picks ★${starCount ? ` (${starCount})` : ""}`],
@@ -676,7 +675,14 @@ function SephoraTracker() {
             role="tab"
             aria-selected={filter === val}
             onClick={() => setFilter(val)}
-            style={{ ...styles.filterBtn, ...(filter === val ? styles.filterBtnActive : {}) }}
+            style={{
+              ...styles.filterBtn,
+              ...(filter === val
+                ? val === "starred"
+                  ? styles.filterBtnActiveGold
+                  : styles.filterBtnActive
+                : {}),
+            }}
           >
             {label}
           </button>
@@ -686,7 +692,7 @@ function SephoraTracker() {
       <div style={styles.jumpRow}>
         <input
           style={styles.jumpInput}
-          placeholder="Jump to Staple Section"
+          placeholder="🔍 Jump to Staple Section"
           value={sectionQuery}
           onChange={(e) => setSectionQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -706,12 +712,58 @@ function SephoraTracker() {
           ))}
         </div>
       )}
+      {filter === "all" && (
+        <div style={styles.bulkRow}>
+          <button style={styles.bulkBtn} onClick={() => setAllCollapsed(true)}>Collapse all ▸</button>
+          <button style={styles.bulkBtn} onClick={() => setAllCollapsed(false)}>Expand all ▾</button>
+          <button
+            style={styles.bulkBtn}
+            onClick={() => {
+              if (showHelp && !helpCollapsed) {
+                setHelpCollapsed(true);
+              } else {
+                setShowHelp(true);
+                setHelpCollapsed(false);
+              }
+            }}
+          >
+            The Basics
+          </button>
+        </div>
+      )}
+      </div>
 
       {/* Categories */}
       {!loaded ? (
         <p style={styles.loading}>Opening the vanity…</p>
       ) : (
         <main>
+          {showHelp && (
+            <div style={styles.helpCard}>
+              <div
+                style={{ ...styles.helpTitle, cursor: "pointer" }}
+                onClick={() => setHelpCollapsed((v) => !v)}
+                role="button"
+                aria-expanded={!helpCollapsed}
+              >
+                The Basics
+                <span style={styles.caret}>{helpCollapsed ? "▸" : "▾"}</span>
+              </div>
+              {!helpCollapsed && (
+                <div className="cat-body">
+                  <p style={styles.helpLine}>- Tap a product once for <b>Want to Get ♡</b></p>
+                  <p style={styles.helpLine}>- Tap again for <b>In Makeup Bag 🛍</b> — a third tap clears it</p>
+                  <p style={styles.helpLine}>- <b>Shop ↗</b> opens it on Sephora</p>
+                  <p style={styles.helpLine}>- <b>+ Add a product</b> at the bottom of any category adds your own</p>
+                  <p style={styles.helpLine}>- Tap <b>+ add color</b> or <b>+ add note</b> to save your shade</p>
+                  <p style={styles.helpLine}>- <b>★</b> marks a Top Pick</p>
+                  <p style={styles.helpLine}>- <b>×</b> removes a product from the list</p>
+                  <p style={styles.helpLine}>- Hit <b>Refresh List ↑</b> to see each other's latest changes</p>
+                  <button style={styles.helpGotIt} onClick={dismissHelp}>Got it 💋</button>
+                </div>
+              )}
+            </div>
+          )}
           {ORDERED_CATEGORIES.map((cat, ci) => {
             const items = [...itemsFor(cat)].sort(
               (a, b) =>
@@ -722,6 +774,11 @@ function SephoraTracker() {
             const shown = keys.filter(visible);
             if (shown.length === 0 && filter !== "all") return null;
             const catOwned = keys.filter((k) => state[k] === 2).length;
+            const catWish = keys.filter((k) => state[k] === 1).length;
+            const catParts = [];
+            if (catWish) catParts.push(`${catWish}♡`);
+            if (catOwned) catParts.push(`${catOwned}🛍`);
+            const catLabel = catParts.length ? catParts.join(" · ") : `${items.length}`;
             const isCollapsed = filter === "all" && collapsed[cat.name];
             const catHasChanges = keys.some((k) => changedKeys.includes(k));
             return (
@@ -738,12 +795,12 @@ function SephoraTracker() {
                     {catHasChanges && <span style={styles.changedDot} title="Updated since your last visit">●</span>}
                   </h2>
                   <span style={styles.catCount}>
-                    {catOwned}/{items.length}
+                    {catLabel}
                     <span style={styles.caret}>{isCollapsed ? "▸" : "▾"}</span>
                   </span>
                 </div>
                 {!isCollapsed && (
-                <div>
+                <div className="cat-body">
                   {items.map((item) => {
                     const key = `${cat.name}::${item.name}`;
                     if (!visible(key)) return null;
@@ -769,7 +826,7 @@ function SephoraTracker() {
                             ...(s === 2 ? styles.badgeOwned : s === 1 ? styles.badgeWish : {}),
                           }}
                         >
-                          {STATUS[s].short}
+                          {s === 1 ? "♥" : STATUS[s].short}
                         </span>
                         <span
                           style={{
@@ -846,11 +903,13 @@ function SephoraTracker() {
                               </span>
                             </span>
                           )}
-                          <span style={styles.statusHintInline}>
-                            {changedKeys.includes(key) ? "● Updated · " : ""}
-                            {item.isCustom ? "Added to the list · " : ""}
-                            {STATUS[s].label}
-                          </span>
+                          {(changedKeys.includes(key) || item.isCustom) && (
+                            <span style={styles.statusHintInline}>
+                              {changedKeys.includes(key) ? "● Updated" : ""}
+                              {changedKeys.includes(key) && item.isCustom ? " · " : ""}
+                              {item.isCustom ? "Added to the list" : ""}
+                            </span>
+                          )}
                         </span>
                         <div style={styles.actionCol} onClick={(e) => e.stopPropagation()}>
                           <a
@@ -878,6 +937,7 @@ function SephoraTracker() {
                               ×
                             </button>
                           </div>
+                          <span style={styles.actionStatus}>{STATUS[s].label}</span>
                         </div>
                       </div>
                     );
@@ -947,7 +1007,7 @@ function SephoraTracker() {
 
           <div style={styles.bottomActions}>
           <button onClick={copyWishlist} style={styles.syncBtn}>
-            {copied ? "Copied! 💕" : "Copy Want-to-Get list 📋"}
+            {copied ? "Copied! 💕" : "Copy Tap-to-Get list 📋"}
           </button>
           {copyFallback && (
             <div style={styles.copyFallbackWrap}>
@@ -1018,7 +1078,7 @@ const styles = {
   eyebrow: {
     fontSize: 11,
     letterSpacing: "0.28em",
-    color: "#B98A4E",
+    color: "#9E7238",
     fontWeight: 700,
     marginBottom: 6,
   },
@@ -1029,7 +1089,7 @@ const styles = {
     fontSize: 34,
     margin: 0,
     lineHeight: 1.05,
-    color: "#F5AFC3",
+    color: "#D2688A",
   },
   tagline: {
     fontFamily: "'Cormorant Garamond', serif",
@@ -1040,7 +1100,7 @@ const styles = {
     margin: "6px 0 0",
     lineHeight: 1.3,
   },
-  subtitle: { fontSize: 13, color: "#7A5E66", marginTop: 8, lineHeight: 1.5 },
+  subtitle: { fontSize: 13, color: "#7A5E66", margin: "6px 0 0", lineHeight: 1.5 },
   meterWrap: { margin: "0 4px 18px" },
   meterLabelRow: {
     display: "flex",
@@ -1072,7 +1132,66 @@ const styles = {
     transform: "skewX(-8deg)",
     transition: "left 400ms ease",
   },
-  filterRow: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 22 },
+  stickyBar: {
+    position: "sticky",
+    top: 0,
+    zIndex: 15,
+    background: "rgba(255,255,255,0.96)",
+    backdropFilter: "blur(5px)",
+    WebkitBackdropFilter: "blur(5px)",
+    padding: "10px 8px 8px",
+    margin: "0 -8px 16px",
+    borderBottom: "1px solid #F8E3E9",
+    borderRadius: "0 0 16px 16px",
+  },
+  filterRow: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+  bulkRow: { display: "flex", justifyContent: "center", gap: 14, marginTop: 8 },
+  helpCard: {
+    background: "#FFFFFF",
+    border: "1.5px dashed #F5AFC3",
+    borderRadius: 16,
+    padding: "14px 16px",
+    marginBottom: 18,
+    textAlign: "center",
+  },
+  helpTitle: {
+    fontFamily: "'Cormorant Garamond', serif",
+    fontStyle: "italic",
+    fontWeight: 600,
+    fontSize: 20,
+    color: "#D2688A",
+    marginBottom: 6,
+  },
+  helpLine: { fontSize: 13, color: "#7A5E66", margin: "4px 0", lineHeight: 1.5, textAlign: "left" },
+  helpGotIt: {
+    marginTop: 10,
+    padding: "8px 22px",
+    background: "#F5AFC3",
+    border: "1px solid #F5AFC3",
+    borderRadius: 999,
+    color: "#7A2E48",
+    fontSize: 13,
+    fontWeight: 700,
+    fontFamily: "'Karla', sans-serif",
+    cursor: "pointer",
+  },
+  bulkBtn: {
+    background: "transparent",
+    border: "none",
+    color: "#9C4A63",
+    fontSize: 12,
+    fontWeight: 700,
+    fontFamily: "'Karla', sans-serif",
+    cursor: "pointer",
+    padding: "2px 6px",
+  },
+  filterBtnActiveGold: {
+    background: "linear-gradient(135deg, #E8B4A0 0%, #D99B8C 45%, #C98276 100%)",
+    color: "#5C2E26",
+    borderColor: "#D99B8C",
+    fontWeight: 700,
+    boxShadow: "0 2px 10px rgba(201, 130, 118, 0.45)",
+  },
   filterBtn: {
     flex: "1 1 45%",
     padding: "9px 4px",
@@ -1119,11 +1238,11 @@ const styles = {
     fontSize: 11,
     fontWeight: 700,
     letterSpacing: "0.12em",
-    color: "#B98A4E",
+    color: "#9E7238",
     marginRight: 10,
     verticalAlign: "middle",
   },
-  catCount: { fontSize: 12, fontWeight: 700, color: "#B98A4E", letterSpacing: "0.08em" },
+  catCount: { fontSize: 12, fontWeight: 700, color: "#9E7238", letterSpacing: "0.08em" },
   itemRow: {
     display: "flex",
     alignItems: "center",
@@ -1139,29 +1258,29 @@ const styles = {
     fontFamily: "'Karla', sans-serif",
     transition: "background 150ms ease, border-color 150ms ease",
   },
-  itemWish: { borderColor: "#B98A4E", background: "#FDF9F2" },
+  itemWish: { borderColor: "#B98A4E", background: "#FCF4E4", boxShadow: "0 1px 4px rgba(185, 138, 78, 0.18)" },
   itemOwned: { borderColor: "#F5AFC3", background: "#FDEFF3" },
   badge: {
     flexShrink: 0,
     width: 26,
     height: 26,
     borderRadius: "50%",
-    border: "1.5px solid #E7CDD0",
-    color: "#C9AEB4",
+    border: "1.5px solid #E0BFC7",
+    color: "#A87B87",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontSize: 13,
     fontWeight: 700,
   },
-  badgeWish: { borderColor: "#B98A4E", color: "#B98A4E" },
+  badgeWish: { borderColor: "#B98A4E", background: "#B98A4E", color: "#FFF8EC" },
   badgeOwned: { borderColor: "#F5AFC3", background: "#F5AFC3", color: "#7A2E48" },
   itemName: { flex: 1, minWidth: 0, fontSize: 14.5, lineHeight: 1.35, color: "#2B1B20", overflowWrap: "break-word" },
   statusHint: { fontSize: 10.5, color: "#B99AA3", letterSpacing: "0.04em", flexShrink: 0 },
   statusHintInline: {
     display: "block",
     fontSize: 10.5,
-    color: "#B99AA3",
+    color: "#9E7A85",
     letterSpacing: "0.04em",
     marginTop: 2,
   },
@@ -1176,7 +1295,10 @@ const styles = {
   shadeAdd: {
     display: "inline-block",
     fontSize: 11.5,
-    color: "#C9AEB4",
+    color: "#A87B87",
+    textDecoration: "underline",
+    textDecorationStyle: "dotted",
+    textUnderlineOffset: "3px",
     marginTop: 3,
     cursor: "pointer",
   },
@@ -1205,7 +1327,7 @@ const styles = {
     cursor: "pointer",
     fontStyle: "italic",
   },
-  caret: { marginLeft: 8, fontSize: 12, color: "#C9AEB4" },
+  caret: { marginLeft: 8, fontSize: 12, color: "#A87B87" },
   inlineRow: { display: "block" },
   actionCol: {
     flexShrink: 0,
@@ -1215,9 +1337,17 @@ const styles = {
     gap: 6,
   },
   actionIcons: { display: "flex", gap: 6 },
+  actionStatus: {
+    fontSize: 10,
+    color: "#9E7A85",
+    textAlign: "center",
+    letterSpacing: "0.03em",
+    lineHeight: 1.3,
+    maxWidth: 86,
+  },
   savePill: {
     position: "fixed",
-    bottom: 18,
+    bottom: "calc(64px + env(safe-area-inset-bottom))",
     left: "50%",
     transform: "translateX(-50%)",
     zIndex: 30,
@@ -1271,7 +1401,7 @@ const styles = {
   },
   topBtn: {
     position: "fixed",
-    bottom: 18,
+    bottom: "calc(18px + env(safe-area-inset-bottom))",
     right: 16,
     zIndex: 20,
     padding: "10px 16px",
@@ -1310,7 +1440,7 @@ const styles = {
   },
   loading: { textAlign: "center", color: "#7A5E66", fontSize: 14 },
   empty: { textAlign: "center", color: "#7A5E66", fontSize: 14, padding: "24px 0" },
-  jumpRow: { display: "flex", gap: 8, margin: "-8px 0 8px" },
+  jumpRow: { display: "flex", gap: 8, margin: "0 0 0" },
   jumpInput: {
     flex: 1,
     minWidth: 0,
@@ -1380,7 +1510,7 @@ const styles = {
     fontFamily: "'Karla', sans-serif",
     cursor: "pointer",
   },
-  footnote: { textAlign: "center", fontSize: 11.5, color: "#B99AA3", marginTop: 10 },
+  footnote: { textAlign: "center", fontSize: 11.5, color: "#9E7A85", marginTop: 10 },
   addRowBtn: {
     display: "block",
     width: "100%",
@@ -1458,9 +1588,5 @@ const rootEl = document.getElementById("root");
 if (DB_URL.startsWith("PASTE_")) {
   rootEl.innerHTML = "<div style='font-family:sans-serif;padding:40px;text-align:center;color:#9C4A63'><h2>Almost there!</h2><p>Open index.html and paste your Firebase Database URL where it says PASTE_YOUR_DATABASE_URL_HERE (see README).</p></div>";
 } else {
-  ReactDOM.createRoot(rootEl).render(React.createElement(SephoraTracker));
+  createRoot(rootEl).render(React.createElement(SephoraTracker));
 }
-
-</script>
-</body>
-</html>
