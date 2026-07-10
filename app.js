@@ -749,15 +749,15 @@ function SephoraTracker() {
                     React.createElement("p", { style: styles.helpLine },
                         "- Tap again for ",
                         React.createElement("b", null, "In Makeup Bag \uD83D\uDC5B"),
-                        " \u2014 a third tap puts it back in Staples"),
+                        " \u2014 a third tap clears it"),
                     React.createElement("p", { style: styles.helpLine },
                         "- ",
                         React.createElement("b", null, "\u2605"),
-                        " marks a Top Pick \u2014 the best of the best for the best"),
+                        " marks a Top Pick \u2014 the best of the best"),
                     React.createElement("p", { style: styles.helpLine },
                         "- ",
                         React.createElement("b", null, "Shop \uD83D\uDECD\uFE0F"),
-                        " opens the product on the website"),
+                        " opens the product in Store"),
                     React.createElement("p", { style: styles.helpLine },
                         "- Tap a product's ",
                         React.createElement("b", null, "name"),
@@ -802,7 +802,10 @@ function SephoraTracker() {
                     ["owned", `In Makeup Bag 👛${ownedCount ? ` (${ownedCount})` : ""}`],
                     ["wishlist", `Want to Get ♡${wishCount ? ` (${wishCount})` : ""}`],
                     ["starred", `Top Picks ★${starCount ? ` (${starCount})` : ""}`],
-                ].map(([val, label]) => (React.createElement("button", { key: val, role: "tab", "aria-selected": filter === val, onClick: () => setFilter(val), style: {
+                ].map(([val, label]) => (React.createElement("button", { key: val, role: "tab", "aria-selected": filter === val, onClick: (e) => {
+                        setFilter(val);
+                        e.currentTarget.blur();
+                    }, style: {
                         ...styles.filterBtn,
                         ...(filter === val
                             ? val === "starred"
@@ -1154,7 +1157,7 @@ const styles = {
         color: "#6B4423",
         borderColor: "#EBC9AC",
         fontWeight: 700,
-        boxShadow: "0 2px 10px rgba(224, 182, 152, 0.5)",
+        boxShadow: "0 0 0 3px rgba(251, 213, 223, 0.9), 0 0 14px rgba(245, 175, 195, 0.9)",
     },
     filterBtn: {
         flex: "1 1 45%",
@@ -1162,18 +1165,22 @@ const styles = {
         fontSize: 13,
         fontWeight: 700,
         fontFamily: "'Karla', sans-serif",
-        background: "#FBD5DF",
+        background: "#FFFFFF",
         color: "#9C4A63",
-        border: "1px solid #FBD5DF",
+        border: "1px solid #F5AFC3",
         borderRadius: 999,
         cursor: "pointer",
+        boxShadow: "0 1px 3px rgba(154, 74, 99, 0.08)",
+        outline: "none",
+        WebkitTapHighlightColor: "rgba(245, 175, 195, 0.35)",
+        WebkitAppearance: "none",
     },
     filterBtnActive: {
         background: "#F5AFC3",
         color: "#7A2E48",
         borderColor: "#F5AFC3",
         fontWeight: 700,
-        boxShadow: "0 2px 8px rgba(245, 175, 195, 0.5)",
+        boxShadow: "0 0 0 3px rgba(251, 213, 223, 0.9), 0 0 14px rgba(245, 175, 195, 0.9)",
     },
     category: {
         marginBottom: 18,
@@ -1414,7 +1421,20 @@ const styles = {
         background: "#FBD5DF",
     },
     loading: { textAlign: "center", color: "#7A5E66", fontSize: 14 },
-    empty: { textAlign: "center", color: "#7A5E66", fontSize: 14, padding: "24px 0" },
+    empty: {
+        textAlign: "center",
+        fontFamily: "'Cormorant Garamond', serif",
+        fontStyle: "italic",
+        fontWeight: 500,
+        fontSize: 18,
+        lineHeight: 1.6,
+        color: "#9C4A63",
+        padding: "26px 20px",
+        background: "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(253,241,244,0.9) 100%)",
+        border: "1px solid #F8E3E9",
+        borderRadius: 16,
+        boxShadow: "0 1px 4px rgba(154, 74, 99, 0.06)",
+    },
     jumpRow: { display: "flex", gap: 8, margin: "0 0 0" },
     jumpFieldWrap: { position: "relative", flex: 1, minWidth: 0, display: "flex" },
     jumpIcon: {
