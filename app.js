@@ -570,7 +570,7 @@ function SephoraTracker() {
             });
         });
         const text = lines.length
-            ? `Rose's Sephora Tap-to-Get list:\n${lines.join("\n")}`
+            ? `Rose's Sephora Staples — Tap-to-Get list:\n${lines.join("\n")}`
             : "Nothing on the Tap-to-Get list yet.";
         try {
             await navigator.clipboard.writeText(text);
@@ -646,29 +646,11 @@ function SephoraTracker() {
             React.createElement("header", { style: styles.header },
                 React.createElement("div", { style: styles.eyebrow }, "ROSE KELLEY'S"),
                 React.createElement("h1", { style: styles.title }, "Sephora Staples"),
-                React.createElement("p", { style: styles.tagline }, "Because she deserves the best of everything"),
-                React.createElement("p", { style: styles.subtitle },
-                    allItems.length,
-                    " potential additions \u00B7 ",
-                    CATEGORIES.length,
-                    " categories")),
-            React.createElement("div", { style: styles.meterWrap },
-                React.createElement("div", { style: styles.meterLabelRow },
-                    React.createElement("span", { style: styles.meterLabel },
-                        ownedCount,
-                        " of ",
-                        allItems.length,
-                        " in makeup bag"),
-                    React.createElement("span", { style: { ...styles.meterLabel, color: "#9E7238" } },
-                        wishCount,
-                        " tap to get")),
-                React.createElement("div", { style: styles.meterTube, "aria-label": `Progress: ${pct}%` },
-                    React.createElement("div", { style: { ...styles.meterFill, width: `${Math.max(pct, 2)}%` } }),
-                    React.createElement("div", { style: { ...styles.meterTip, left: `calc(${Math.max(pct, 2)}% - 7px)` } }))),
+                React.createElement("p", { style: styles.tagline }, "Because she deserves the best of everything")),
             React.createElement("div", { style: styles.stickyBar },
                 React.createElement("div", { style: styles.filterRow, role: "tablist" }, [
                     ["all", "Staples 💋"],
-                    ["owned", `In Makeup Bag 🛍️${ownedCount ? ` (${ownedCount})` : ""}`],
+                    ["owned", `In Makeup Bag 👛${ownedCount ? ` (${ownedCount})` : ""}`],
                     ["wishlist", `Want to Get ♡${wishCount ? ` (${wishCount})` : ""}`],
                     ["starred", `Top Picks ★${starCount ? ` (${starCount})` : ""}`],
                 ].map(([val, label]) => (React.createElement("button", { key: val, role: "tab", "aria-selected": filter === val, onClick: () => setFilter(val), style: {
@@ -686,7 +668,7 @@ function SephoraTracker() {
                         } }),
                     React.createElement("button", { onClick: loadShared, style: styles.syncBtnTop }, "Refresh List \u2191")),
                 sectionMatches.length > 0 && (React.createElement("div", { style: styles.jumpChips }, sectionMatches.map((c) => (React.createElement("button", { key: c.name, style: styles.jumpChip, onClick: () => jumpToSection(c.name) }, c.name))))),
-                filter === "all" && (React.createElement("div", { style: styles.bulkRow },
+                React.createElement("div", { style: styles.bulkRow },
                     React.createElement("button", { style: styles.bulkBtn, onClick: () => setAllCollapsed(true) }, "Collapse all \u25B8"),
                     React.createElement("button", { style: styles.bulkBtn, onClick: () => setAllCollapsed(false) }, "Expand all \u25BE"),
                     React.createElement("button", { style: styles.bulkBtn, onClick: () => {
@@ -697,7 +679,25 @@ function SephoraTracker() {
                                 setShowHelp(true);
                                 updateHelpCollapsed(false);
                             }
-                        } }, "The Basics")))),
+                        } }, "The Basics"))),
+            React.createElement("div", { style: styles.meterCard },
+                React.createElement("div", { style: styles.meterStats },
+                    allItems.length,
+                    " potential additions \u00B7 ",
+                    CATEGORIES.length,
+                    " categories"),
+                React.createElement("div", { style: styles.meterLabelRow },
+                    React.createElement("span", { style: styles.meterLabel },
+                        ownedCount,
+                        " of ",
+                        allItems.length,
+                        " in Rose's Makeup Bag"),
+                    React.createElement("span", { style: { ...styles.meterLabel, color: "#9E7238" } },
+                        wishCount,
+                        " tap to get")),
+                React.createElement("div", { style: styles.meterTube, "aria-label": `Progress: ${pct}%` },
+                    React.createElement("div", { style: { ...styles.meterFill, width: `${Math.max(pct, 2)}%` } }),
+                    React.createElement("div", { style: { ...styles.meterTip, left: `calc(${Math.max(pct, 2)}% - 7px)` } }))),
             !loaded ? (React.createElement("p", { style: styles.loading }, "Opening the vanity\u2026")) : (React.createElement("main", null,
                 showHelp && (React.createElement("div", { style: styles.helpCard },
                     React.createElement("div", { style: { ...styles.helpTitle, cursor: "pointer" }, onClick: () => updateHelpCollapsed(!helpCollapsed), role: "button", "aria-expanded": !helpCollapsed },
@@ -709,11 +709,11 @@ function SephoraTracker() {
                             React.createElement("b", null, "Want to Get \u2661")),
                         React.createElement("p", { style: styles.helpLine },
                             "- Tap again for ",
-                            React.createElement("b", null, "In Makeup Bag \uD83D\uDECD"),
+                            React.createElement("b", null, "In Makeup Bag \uD83D\uDC5B"),
                             " \u2014 a third tap clears it"),
                         React.createElement("p", { style: styles.helpLine },
                             "- ",
-                            React.createElement("b", null, "Shop \u2197"),
+                            React.createElement("b", null, "Shop \uD83D\uDECD\uFE0F"),
                             " opens it on Sephora"),
                         React.createElement("p", { style: styles.helpLine },
                             "- ",
@@ -737,6 +737,7 @@ function SephoraTracker() {
                             "- Hit ",
                             React.createElement("b", null, "Refresh List \u2191"),
                             " to see each other's latest changes"),
+                        React.createElement("p", { style: { ...styles.helpLine, fontStyle: "italic", color: "#D2688A", textAlign: "center", marginTop: 8 } }, "And obviously there is nothing basic about you as you are the best ever."),
                         React.createElement("button", { style: styles.helpGotIt, onClick: dismissHelp }, "Got it \uD83D\uDC8B"))))),
                 ORDERED_CATEGORIES.map((cat, ci) => {
                     const items = [...itemsFor(cat)].sort((a, b) => ((state[`${cat.name}::${a.name}`] || 0) === 2 ? 1 : 0) -
@@ -751,9 +752,9 @@ function SephoraTracker() {
                     if (catWish)
                         catParts.push(`${catWish}♡`);
                     if (catOwned)
-                        catParts.push(`${catOwned}🛍`);
+                        catParts.push(`${catOwned}👛`);
                     const catLabel = catParts.length ? catParts.join(" · ") : `${items.length}`;
-                    const isCollapsed = filter === "all" && collapsed[cat.name];
+                    const isCollapsed = !!collapsed[cat.name];
                     const catHasChanges = keys.some((k) => changedKeys.includes(k));
                     return (React.createElement("section", { key: cat.name, id: `cat-${cat.name}`, style: styles.category },
                         React.createElement("div", { style: { ...styles.catHeader, cursor: "pointer" }, onClick: () => toggleCollapse(cat.name), role: "button", "aria-expanded": !isCollapsed },
@@ -787,7 +788,7 @@ function SephoraTracker() {
                                         } },
                                         item.name,
                                         editingShade === key ? (React.createElement("span", { style: styles.shadeEditWrap, onClick: (e) => e.stopPropagation() },
-                                            React.createElement("input", { style: styles.shadeInput, placeholder: "Color / shade", value: shadeText, onChange: (e) => setShadeText(e.target.value), onKeyDown: (e) => {
+                                            React.createElement("input", { style: styles.shadeInput, placeholder: "Type the color or shade name, then hit Save", value: shadeText, onChange: (e) => setShadeText(e.target.value), onKeyDown: (e) => {
                                                     if (e.key === "Enter")
                                                         saveShade(key);
                                                     if (e.key === "Escape") {
@@ -802,7 +803,7 @@ function SephoraTracker() {
                                                     setShadeText(shades[key] || "");
                                                 } }, shades[key] ? `${shades[key]} ✎` : "+ add color"))),
                                         editingNote === key ? (React.createElement("span", { style: styles.shadeEditWrap, onClick: (e) => e.stopPropagation() },
-                                            React.createElement("input", { style: styles.shadeInput, placeholder: "Note (e.g. wants the mini size)", value: noteText, onChange: (e) => setNoteText(e.target.value), onKeyDown: (e) => {
+                                            React.createElement("input", { style: styles.shadeInput, placeholder: 'Type a note — like "wants the mini size" — then hit Save', value: noteText, onChange: (e) => setNoteText(e.target.value), onKeyDown: (e) => {
                                                     if (e.key === "Enter")
                                                         saveNote(key);
                                                     if (e.key === "Escape") {
@@ -815,10 +816,9 @@ function SephoraTracker() {
                                                     e.stopPropagation();
                                                     setEditingNote(key);
                                                     setNoteText(notes[key] || "");
-                                                } }, notes[key] ? `📝 ${notes[key]} ✎` : "+ add note"))),
-                                        item.isCustom && (React.createElement("span", { style: styles.statusHintInline }, "Added to the list"))),
+                                                } }, notes[key] ? `📝 ${notes[key]} ✎` : "+ add note")))),
                                     React.createElement("div", { style: styles.actionCol, onClick: (e) => e.stopPropagation() },
-                                        React.createElement("a", { href: item.url || sephoraUrl(item.q), target: "_blank", rel: "noopener noreferrer", style: styles.shopLink, "aria-label": `Shop ${item.name} on Sephora` }, "Shop \u2197"),
+                                        React.createElement("a", { href: item.url || sephoraUrl(item.q), target: "_blank", rel: "noopener noreferrer", style: styles.shopLink, "aria-label": `Shop ${item.name} on Sephora` }, "Shop \uD83D\uDECD\uFE0F"),
                                         React.createElement("div", { style: styles.actionIcons },
                                             React.createElement("button", { onClick: () => toggleStar(key), style: { ...styles.starBtn, ...(stars[key] ? styles.starBtnActive : {}) }, "aria-label": stars[key] ? `Unstar ${item.name}` : `Star ${item.name} as a top pick` }, stars[key] ? "★" : "☆"),
                                             React.createElement("button", { onClick: () => removeProduct(cat.name, item), style: styles.removeBtn, "aria-label": `Remove ${item.name}` }, "\u00D7")),
@@ -827,7 +827,7 @@ function SephoraTracker() {
                             }),
                             filter === "all" && (addingTo === cat.name ? (React.createElement("div", { style: styles.addForm, onClick: (e) => e.stopPropagation() },
                                 React.createElement("input", { style: styles.addInput, placeholder: "Product name", value: newName, onChange: (e) => setNewName(e.target.value), autoFocus: true }),
-                                React.createElement("input", { style: styles.addInput, placeholder: "Sephora link (optional)", value: newLink, onChange: (e) => setNewLink(e.target.value) }),
+                                React.createElement("input", { style: styles.addInput, placeholder: "Product link (optional)", value: newLink, onChange: (e) => setNewLink(e.target.value) }),
                                 React.createElement("input", { style: styles.addInput, placeholder: "Color / shade (optional)", value: newShade, onChange: (e) => setNewShade(e.target.value) }),
                                 React.createElement("input", { style: styles.addInput, placeholder: "Note (optional)", value: newNote, onChange: (e) => setNewNote(e.target.value) }),
                                 React.createElement("div", { style: styles.addFormRow },
@@ -843,19 +843,22 @@ function SephoraTracker() {
                                         } }, "Cancel")))) : (React.createElement("button", { style: styles.addRowBtn, onClick: () => setAddingTo(cat.name) }, "+ Add a product")))))));
                 }),
                 filter !== "all" && ownedCount === 0 && wishCount === 0 && (React.createElement("p", { style: styles.empty }, "Nothing tracked yet \u2014 tap any item to start.")),
-                React.createElement("div", { style: styles.bottomActions },
-                    React.createElement("button", { onClick: copyWishlist, style: styles.syncBtn }, copied ? "Copied! 💕" : "Copy Tap-to-Get list 📋"),
-                    copyFallback && (React.createElement("div", { style: styles.copyFallbackWrap },
-                        React.createElement("p", { style: styles.footnote }, "Couldn't reach the clipboard \u2014 long-press to copy from here:"),
-                        React.createElement("textarea", { style: styles.copyFallbackBox, readOnly: true, value: copyFallback, onFocus: (e) => e.target.select() }),
-                        React.createElement("button", { style: styles.resetBtn, onClick: () => setCopyFallback("") }, "Close"))),
-                    React.createElement("button", { onClick: loadShared, style: styles.syncBtn }, "Refresh List \u2191"),
-                    removed.length > 0 && (React.createElement("button", { onClick: restoreRemoved, style: styles.resetBtn },
-                        "Restore removed products (",
-                        removed.length,
-                        ")")),
-                    React.createElement("button", { onClick: reset, style: styles.resetBtn }, confirmingReset ? "Tap again to clear everything" : "Clear all")),
-                React.createElement("p", { style: styles.footnote }, "Shared list \u2014 checkmarks save for everyone with the link. Tap sync to see the latest."))),
+                React.createElement("div", { style: styles.bottomCard },
+                    React.createElement("div", { style: styles.bottomActions },
+                        React.createElement("button", { onClick: copyWishlist, style: styles.syncBtn }, copied ? "Copied! 💕" : "Copy Tap-to-Get list 📋"),
+                        copyFallback && (React.createElement("div", { style: styles.copyFallbackWrap },
+                            React.createElement("p", { style: styles.footnote }, "Couldn't reach the clipboard \u2014 long-press to copy from here:"),
+                            React.createElement("textarea", { style: styles.copyFallbackBox, readOnly: true, value: copyFallback, onFocus: (e) => e.target.select() }),
+                            React.createElement("button", { style: styles.resetBtn, onClick: () => setCopyFallback("") }, "Close"))),
+                        React.createElement("button", { onClick: loadShared, style: styles.syncBtn }, "Refresh List \u2191"),
+                        React.createElement("button", { onClick: scrollToTop, style: styles.resetBtn }, "Back to top \u2191"),
+                        removed.length > 0 && (React.createElement("button", { onClick: restoreRemoved, style: styles.resetBtn },
+                            "Restore removed products (",
+                            removed.length,
+                            ")")),
+                        React.createElement("button", { onClick: reset, style: styles.resetBtn }, confirmingReset ? "Tap again to clear everything" : "Clear all")),
+                    React.createElement("p", { style: styles.footnote }, "Shared list \u2014 checkmarks save for everyone with the link. Tap Refresh List to see the latest.")),
+                React.createElement("p", { style: styles.dedication }, "Sephora Staples is dedicated to Strudel, who not only deserves everything on this list but deserves the best in life for eternity"))),
             saveStatus && (React.createElement("div", { style: {
                     ...styles.savePill,
                     ...(saveStatus === "error" ? styles.savePillError : {}),
@@ -870,7 +873,8 @@ const styles = {
     page: {
         minHeight: "100vh",
         background: "repeating-linear-gradient(90deg, #FFFFFF 0px, #FFFFFF 12px, #FDF1F4 12px, #FDF1F4 24px)",
-        backgroundColor: "#FFFFFF",
+        backgroundColor: "#FDF1F4",
+        overflowX: "hidden",
         color: "#2B1B20",
         fontFamily: "'Karla', sans-serif",
         padding: "28px 16px 48px",
@@ -907,6 +911,20 @@ const styles = {
     },
     subtitle: { fontSize: 13, color: "#7A5E66", margin: "6px 0 0", lineHeight: 1.5 },
     meterWrap: { margin: "0 4px 18px" },
+    meterCard: {
+        padding: "14px 16px 16px",
+        borderRadius: 16,
+        background: "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(253,241,244,0.9) 100%)",
+        border: "1px solid #F8E3E9",
+        boxShadow: "0 1px 4px rgba(154, 74, 99, 0.06)",
+        marginBottom: 18,
+    },
+    meterStats: {
+        textAlign: "center",
+        fontSize: 12.5,
+        color: "#7A5E66",
+        marginBottom: 10,
+    },
     meterLabelRow: {
         display: "flex",
         justifyContent: "space-between",
@@ -949,7 +967,7 @@ const styles = {
         borderBottom: "1px solid #F8E3E9",
         borderRadius: "0 0 16px 16px",
     },
-    filterRow: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+    filterRow: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 },
     bulkRow: { display: "flex", justifyContent: "center", gap: 14, marginTop: 8 },
     helpCard: {
         background: "#FFFFFF",
@@ -991,11 +1009,11 @@ const styles = {
         padding: "2px 6px",
     },
     filterBtnActiveGold: {
-        background: "linear-gradient(135deg, #E8B4A0 0%, #D99B8C 45%, #C98276 100%)",
-        color: "#5C2E26",
-        borderColor: "#D99B8C",
+        background: "linear-gradient(135deg, #F4DCC3 0%, #EBC9AC 50%, #E0B698 100%)",
+        color: "#6B4423",
+        borderColor: "#EBC9AC",
         fontWeight: 700,
-        boxShadow: "0 2px 10px rgba(201, 130, 118, 0.45)",
+        boxShadow: "0 2px 10px rgba(224, 182, 152, 0.5)",
     },
     filterBtn: {
         flex: "1 1 45%",
@@ -1079,9 +1097,9 @@ const styles = {
         fontWeight: 700,
     },
     badgeWish: {
-        borderColor: "#D99B8C",
-        background: "linear-gradient(135deg, #E8B4A0 0%, #D99B8C 45%, #C98276 100%)",
-        color: "#5C2E26",
+        borderColor: "#E0B698",
+        background: "linear-gradient(135deg, #F4DCC3 0%, #EBC9AC 50%, #E0B698 100%)",
+        color: "#6B4423",
     },
     badgeOwned: { borderColor: "#F5AFC3", background: "#F5AFC3", color: "#7A2E48" },
     itemName: { flex: 1, minWidth: 0, fontSize: 14.5, lineHeight: 1.35, color: "#2B1B20", overflowWrap: "break-word" },
@@ -1095,7 +1113,7 @@ const styles = {
     },
     shadeText: {
         display: "inline-block",
-        fontSize: 12.5,
+        fontSize: 13.5,
         fontWeight: 700,
         color: "#9C4A63",
         marginTop: 3,
@@ -1103,7 +1121,7 @@ const styles = {
     },
     shadeAdd: {
         display: "inline-block",
-        fontSize: 11.5,
+        fontSize: 12.5,
         color: "#A87B87",
         textDecoration: "underline",
         textDecorationStyle: "dotted",
@@ -1123,14 +1141,14 @@ const styles = {
         padding: "6px 10px",
         border: "1px solid #F5AFC3",
         borderRadius: 8,
-        fontSize: 13,
+        fontSize: 16,
         fontFamily: "'Karla', sans-serif",
         color: "#2B1B20",
         outline: "none",
     },
     noteText: {
         display: "inline-block",
-        fontSize: 12,
+        fontSize: 13,
         color: "#7A5E66",
         marginTop: 3,
         cursor: "pointer",
@@ -1145,7 +1163,7 @@ const styles = {
         alignItems: "center",
         gap: 6,
     },
-    actionIcons: { display: "flex", gap: 6 },
+    actionIcons: { display: "flex", gap: 6, alignItems: "center" },
     actionUpdated: {
         fontSize: 10,
         fontWeight: 700,
@@ -1210,7 +1228,7 @@ const styles = {
         padding: 10,
         border: "1px solid #F5AFC3",
         borderRadius: 12,
-        fontSize: 12.5,
+        fontSize: 16,
         fontFamily: "'Karla', sans-serif",
         color: "#2B1B20",
         background: "#FFFFFF",
@@ -1263,7 +1281,7 @@ const styles = {
         padding: "9px 14px",
         border: "1px solid #F5D8E0",
         borderRadius: 999,
-        fontSize: 13,
+        fontSize: 16,
         fontFamily: "'Karla', sans-serif",
         color: "#2B1B20",
         background: "#FFFFFF",
@@ -1294,12 +1312,19 @@ const styles = {
         fontFamily: "'Karla', sans-serif",
         cursor: "pointer",
     },
+    bottomCard: {
+        marginTop: 26,
+        padding: "16px 14px",
+        borderRadius: 16,
+        background: "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(253,241,244,0.9) 100%)",
+        border: "1px solid #F8E3E9",
+        boxShadow: "0 1px 4px rgba(154, 74, 99, 0.06)",
+    },
     bottomActions: {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         gap: 10,
-        marginTop: 26,
     },
     syncBtn: {
         display: "block",
@@ -1327,6 +1352,16 @@ const styles = {
         cursor: "pointer",
     },
     footnote: { textAlign: "center", fontSize: 11.5, color: "#9E7A85", marginTop: 10 },
+    dedication: {
+        fontFamily: "'Cormorant Garamond', serif",
+        fontStyle: "italic",
+        fontWeight: 500,
+        fontSize: 16,
+        color: "#D2688A",
+        textAlign: "center",
+        lineHeight: 1.6,
+        margin: "26px 10px 8px",
+    },
     addRowBtn: {
         display: "block",
         width: "100%",
@@ -1354,7 +1389,7 @@ const styles = {
         marginBottom: 8,
         border: "1px solid #F5D8E0",
         borderRadius: 10,
-        fontSize: 14,
+        fontSize: 16,
         fontFamily: "'Karla', sans-serif",
         color: "#2B1B20",
         outline: "none",
@@ -1384,13 +1419,13 @@ const styles = {
     },
     removeBtn: {
         flexShrink: 0,
-        width: 24,
-        height: 24,
+        width: 28,
+        height: 28,
         borderRadius: "50%",
         border: "1px solid #F5D8E0",
         background: "transparent",
         color: "#B99AA3",
-        fontSize: 14,
+        fontSize: 15,
         lineHeight: 1,
         cursor: "pointer",
         display: "flex",

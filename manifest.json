@@ -1,9 +1,9 @@
 {
   "name": "Rose's Sephora Staples",
-  "short_name": "Rose's Staples",
+  "short_name": "Sephora Staples",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FFFFFF",
+  "background_color": "#FDF1F4",
   "theme_color": "#F5AFC3",
   "icons": [
     {
