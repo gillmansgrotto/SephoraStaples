@@ -1,5 +1,5 @@
 "use strict";
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 // ---- Data ----------------------------------------------------------------
 const CATEGORIES = [
     { name: "Foundation", items: [
@@ -246,6 +246,24 @@ const SEED_IN_BAG = [
     "Skin Prep::Caudalie Beauty Elixir Face Mist",
 ];
 const LAST_SEEN_KEY = "sephora-tracker-last-seen";
+const OFFLINE_KEY = "sephora-tracker-offline-cache";
+const COLLAPSED_KEY = "sephora-tracker-collapsed";
+// Collapse/expand is a per-device preference, kept in localStorage (not the shared DB)
+const loadCollapsedLocal = () => {
+    try {
+        const v = localStorage.getItem(COLLAPSED_KEY);
+        return v ? JSON.parse(v) : null;
+    }
+    catch (e) {
+        return null;
+    }
+};
+const saveCollapsedLocal = (map) => {
+    try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify(map));
+    }
+    catch (e) { }
+};
 function SephoraTracker() {
     const [state, setState] = useState({});
     const [custom, setCustom] = useState({}); // { [categoryName]: [{name, q, url?}] }
@@ -273,8 +291,9 @@ function SephoraTracker() {
     const [nameText, setNameText] = useState("");
     const [updatedAt, setUpdatedAt] = useState({}); // { [itemKey]: timestamp }
     const [changedKeys, setChangedKeys] = useState([]); // keys changed since this device last looked
-    const [collapsed, setCollapsed] = useState({}); // { [catName]: true }
-    const [collapsedInit, setCollapsedInit] = useState(false);
+    const [collapsed, setCollapsed] = useState(() => loadCollapsedLocal() || {}); // { [catName]: true }
+    const [collapsedInit, setCollapsedInit] = useState(() => loadCollapsedLocal() !== null);
+    const dbEtag = useRef(null); // last known ETag of /tracker.json — used for conflict-safe saves
     const [copied, setCopied] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [refreshed, setRefreshed] = useState(false);
@@ -319,6 +338,8 @@ function SephoraTracker() {
         catch (e) { }
     };
     const [copyFallback, setCopyFallback] = useState("");
+    const [addError, setAddError] = useState("");
+    const [confirmingRemoveCat, setConfirmingRemoveCat] = useState(null);
     const loadShared = async () => {
         let statuses = {};
         let customItems = {};
@@ -334,35 +355,53 @@ function SephoraTracker() {
         let hadData = false;
         let seeded = false;
         let seededV2 = false;
+        let parsed = null;
         try {
-            const resp = await fetch(`${DB_URL}/tracker.json`);
+            const resp = await fetch(`${DB_URL}/tracker.json`, { headers: { "X-Firebase-ETag": "true" } });
             readOk = resp.ok;
+            if (resp.ok)
+                dbEtag.current = resp.headers.get("ETag");
             const raw = resp.ok ? await resp.json() : null;
             hadData = raw !== null && raw !== undefined;
-            const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-            if (parsed) {
-                if (parsed && parsed.statuses) {
-                    statuses = parsed.statuses || {};
-                    customItems = parsed.custom || {};
-                    removedKeys = parsed.removed || [];
-                    shadeMap = parsed.shades || {};
-                    starMap = parsed.stars || {};
-                    noteMap = parsed.notes || {};
-                    nameMap = parsed.names || {};
-                    updatedMap = parsed.updatedAt || {};
-                    collapsedMap = parsed.collapsed || null;
-                    customCatsList = parsed.customCats || [];
-                    seeded = parsed.seeded === true;
-                    seededV2 = parsed.seededV2 === true;
+            parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+            if (readOk && parsed) {
+                try {
+                    localStorage.setItem(OFFLINE_KEY, JSON.stringify(parsed));
                 }
-                else if (parsed && typeof parsed === "object") {
-                    // legacy format: plain status map
-                    statuses = parsed;
-                }
+                catch (e2) { }
             }
         }
         catch (e) {
             // network / URL problem — readOk stays false
+        }
+        if (!readOk) {
+            // offline — fall back to the last data this device saw
+            try {
+                const cached = localStorage.getItem(OFFLINE_KEY);
+                if (cached)
+                    parsed = JSON.parse(cached);
+            }
+            catch (e) { }
+        }
+        if (parsed) {
+            if (parsed.statuses) {
+                statuses = parsed.statuses || {};
+                customItems = parsed.custom || {};
+                removedKeys = parsed.removed || [];
+                shadeMap = parsed.shades || {};
+                starMap = parsed.stars || {};
+                noteMap = parsed.notes || {};
+                nameMap = parsed.names || {};
+                updatedMap = parsed.updatedAt || {};
+                collapsedMap = parsed.collapsed || null;
+                customCatsList = parsed.customCats || [];
+                seeded = parsed.seeded === true;
+                seededV2 = parsed.seededV2 === true;
+            }
+            else if (typeof parsed === "object") {
+                // legacy format: plain status map
+                statuses = parsed;
+            }
         }
         if (!readOk) {
             setSaveStatus("error");
@@ -416,8 +455,10 @@ function SephoraTracker() {
         setNames(nameMap);
         setUpdatedAt(updatedMap);
         setCustomCats(customCatsList);
-        if (collapsedMap && Object.keys(collapsedMap).length > 0) {
+        // One-time migration: adopt the old shared collapse map only if this device has no local preference yet
+        if (!collapsedInit && loadCollapsedLocal() === null && collapsedMap && Object.keys(collapsedMap).length > 0) {
             setCollapsed(collapsedMap);
+            saveCollapsedLocal(collapsedMap);
             setCollapsedInit(true);
         }
         setLoaded(true);
@@ -425,11 +466,13 @@ function SephoraTracker() {
         // even if this build failed to parse it.
         if (readOk && !hadData) {
             try {
-                await fetch(`${DB_URL}/tracker.json`, {
+                const seedResp = await fetch(`${DB_URL}/tracker.json`, {
                     method: "PUT",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-Firebase-ETag": "true" },
                     body: JSON.stringify(JSON.stringify({ statuses, custom: customItems, removed: removedKeys, shades: shadeMap, stars: starMap, notes: noteMap, updatedAt: updatedMap, seeded: true, seededV2: true })),
                 });
+                if (seedResp.ok)
+                    dbEtag.current = seedResp.headers.get("ETag");
             }
             catch (e) {
                 // storage not available yet (unpublished) — seed still shows locally
@@ -439,25 +482,7 @@ function SephoraTracker() {
     useEffect(() => {
         loadShared();
     }, []);
-    const persist = async (changes) => {
-        if (!dbReady) {
-            setSaveStatus("error");
-            return;
-        }
-        const data = {
-            statuses: changes.statuses !== undefined ? changes.statuses : state,
-            custom: changes.custom !== undefined ? changes.custom : custom,
-            removed: changes.removed !== undefined ? changes.removed : removed,
-            shades: changes.shades !== undefined ? changes.shades : shades,
-            stars: changes.stars !== undefined ? changes.stars : stars,
-            notes: changes.notes !== undefined ? changes.notes : notes,
-            names: changes.names !== undefined ? changes.names : names,
-            updatedAt: changes.updatedAt !== undefined ? changes.updatedAt : updatedAt,
-            collapsed: changes.collapsed !== undefined ? changes.collapsed : collapsed,
-            customCats: changes.customCats !== undefined ? changes.customCats : customCats,
-            seeded: true,
-            seededV2: true,
-        };
+    const applyLocal = (data) => {
         setState(data.statuses);
         setCustom(data.custom);
         setRemoved(data.removed);
@@ -466,19 +491,79 @@ function SephoraTracker() {
         setNotes(data.notes);
         setNames(data.names);
         setUpdatedAt(data.updatedAt);
-        setCollapsed(data.collapsed);
         setCustomCats(data.customCats);
+    };
+    const persist = async (changes) => {
+        if (!dbReady) {
+            setSaveStatus("error");
+            return;
+        }
+        // Fields not being changed fall back to `base` — local state normally,
+        // or the server's latest data when re-applying after a conflict.
+        const buildData = (base) => ({
+            statuses: changes.statuses !== undefined ? changes.statuses : base.statuses,
+            custom: changes.custom !== undefined ? changes.custom : base.custom,
+            removed: changes.removed !== undefined ? changes.removed : base.removed,
+            shades: changes.shades !== undefined ? changes.shades : base.shades,
+            stars: changes.stars !== undefined ? changes.stars : base.stars,
+            notes: changes.notes !== undefined ? changes.notes : base.notes,
+            names: changes.names !== undefined ? changes.names : base.names,
+            updatedAt: changes.updatedAt !== undefined ? changes.updatedAt : base.updatedAt,
+            customCats: changes.customCats !== undefined ? changes.customCats : base.customCats,
+            seeded: true,
+            seededV2: true,
+        });
+        let data = buildData({ statuses: state, custom, removed, shades, stars, notes, names, updatedAt, customCats });
+        applyLocal(data);
+        const putData = (d) => fetch(`${DB_URL}/tracker.json`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Firebase-ETag": "true",
+                ...(dbEtag.current ? { "if-match": dbEtag.current } : {}),
+            },
+            body: JSON.stringify(JSON.stringify(d)),
+        });
         try {
             setSaveStatus("saving");
-            const resp = await fetch(`${DB_URL}/tracker.json`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(JSON.stringify(data)),
-            });
+            let resp = await putData(data);
+            if (resp.status === 412) {
+                // Someone else saved since this device last loaded — pull their
+                // version and re-apply just this change on top instead of clobbering it.
+                const fresh = await fetch(`${DB_URL}/tracker.json`, { headers: { "X-Firebase-ETag": "true" } });
+                if (!fresh.ok)
+                    throw new Error(`HTTP ${fresh.status}`);
+                dbEtag.current = fresh.headers.get("ETag");
+                const rawF = await fresh.json();
+                const parsedF = (typeof rawF === "string" ? JSON.parse(rawF) : rawF) || {};
+                const server = parsedF.statuses ? parsedF : { statuses: parsedF };
+                data = buildData({
+                    statuses: server.statuses || {},
+                    custom: server.custom || {},
+                    removed: server.removed || [],
+                    shades: server.shades || {},
+                    stars: server.stars || {},
+                    notes: server.notes || {},
+                    names: server.names || {},
+                    updatedAt: server.updatedAt || {},
+                    customCats: server.customCats || [],
+                });
+                // updatedAt: keep the newest timestamp per item from either side
+                const mergedTimes = { ...(server.updatedAt || {}) };
+                Object.keys(data.updatedAt || {}).forEach((k) => {
+                    if (!mergedTimes[k] || (data.updatedAt[k] || 0) > mergedTimes[k])
+                        mergedTimes[k] = data.updatedAt[k];
+                });
+                data.updatedAt = mergedTimes;
+                applyLocal(data);
+                resp = await putData(data);
+            }
             if (!resp.ok)
                 throw new Error(`HTTP ${resp.status}`);
+            dbEtag.current = resp.headers.get("ETag") || dbEtag.current;
             try {
                 localStorage.setItem(LAST_SEEN_KEY, String(Date.now()));
+                localStorage.setItem(OFFLINE_KEY, JSON.stringify(data));
             }
             catch (e2) { }
             setSaveStatus("saved");
@@ -542,6 +627,13 @@ function SephoraTracker() {
         const name = newName.trim();
         if (!name)
             return;
+        const builtIn = (CATEGORIES.find((c) => c.name === catName) || { items: [] }).items
+            .filter((i) => !removed.includes(`${catName}::${i.name}`));
+        const inCat = [...builtIn, ...(custom[catName] || [])];
+        if (inCat.some((i) => i.name.toLowerCase() === name.toLowerCase())) {
+            setAddError("That product is already in this category 💄");
+            return;
+        }
         const link = newLink.trim();
         const entry = { name, q: name };
         if (link && /^https?:\/\//i.test(link))
@@ -558,6 +650,7 @@ function SephoraTracker() {
         setNewLink("");
         setNewShade("");
         setNewNote("");
+        setAddError("");
         setAddingTo(null);
     };
     const removeProduct = (catName, item) => {
@@ -674,6 +767,7 @@ function SephoraTracker() {
             init[cat.name] = !hasActivity;
         });
         setCollapsed(init);
+        saveCollapsedLocal(init);
         setCollapsedInit(true);
     }, [loaded]);
     const addCategory = () => {
@@ -689,6 +783,12 @@ function SephoraTracker() {
         persist({ customCats: [...customCats, name] });
     };
     const removeCategory = (catName) => {
+        if (confirmingRemoveCat !== catName) {
+            setConfirmingRemoveCat(catName);
+            setTimeout(() => setConfirmingRemoveCat((c) => (c === catName ? null : c)), 3500);
+            return;
+        }
+        setConfirmingRemoveCat(null);
         const prefix = `${catName}::`;
         const clean = (obj) => {
             const o = { ...obj };
@@ -707,6 +807,8 @@ function SephoraTracker() {
             shades: clean(shades),
             notes: clean(notes),
             stars: clean(stars),
+            names: clean(names),
+            updatedAt: clean(updatedAt),
         });
     };
     const setAllCollapsed = (value) => {
@@ -715,17 +817,19 @@ function SephoraTracker() {
             next[c.name] = value;
         });
         setCollapsedInit(true);
-        persist({ collapsed: next });
+        setCollapsed(next);
+        saveCollapsedLocal(next);
     };
     const toggleCollapse = (catName) => {
         const next = { ...collapsed, [catName]: !collapsed[catName] };
-        persist({ collapsed: next });
+        setCollapsed(next);
+        saveCollapsedLocal(next);
     };
     const allItems = allCats.flatMap((c) => itemsFor(c).map((i) => `${c.name}::${i.name}`));
     const ownedCount = allItems.filter((k) => state[k] === 2).length;
     const wishCount = allItems.filter((k) => state[k] === 1).length;
     const starCount = allItems.filter((k) => stars[k]).length;
-    const pct = Math.round((ownedCount / allItems.length) * 100);
+    const pct = allItems.length ? Math.round((ownedCount / allItems.length) * 100) : 0;
     const visible = (key) => {
         const s = state[key] || 0;
         if (filter === "wishlist")
@@ -744,7 +848,6 @@ function SephoraTracker() {
         : [];
     return (React.createElement("div", { style: styles.page },
         React.createElement("div", { style: styles.inner },
-            React.createElement("link", { href: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Karla:wght@400;500;700&display=swap", rel: "stylesheet" }),
             React.createElement("header", { style: styles.header },
                 React.createElement("div", { style: styles.eyebrow }, "ROSE KELLEY'S"),
                 React.createElement("h1", { style: styles.title }, "Sephora Staples"),
@@ -892,7 +995,11 @@ function SephoraTracker() {
                                 cat.isCustomCat && (React.createElement("button", { onClick: (e) => {
                                         e.stopPropagation();
                                         removeCategory(cat.name);
-                                    }, style: styles.removeBtn, "aria-label": `Remove ${cat.name} category` }, "\u00D7")))),
+                                    }, style: confirmingRemoveCat === cat.name
+                                        ? { ...styles.removeBtn, width: "auto", padding: "0 10px", color: "#8C2F2F", borderColor: "#E8A2A2", background: "#FDECEA", fontSize: 11, fontWeight: 700 }
+                                        : styles.removeBtn, "aria-label": confirmingRemoveCat === cat.name
+                                        ? `Tap again to remove ${cat.name} and everything in it`
+                                        : `Remove ${cat.name} category` }, confirmingRemoveCat === cat.name ? "Remove?" : "\u00D7")))),
                         !isCollapsed && (React.createElement("div", { className: "cat-body" },
                             items.map((item) => {
                                 const key = `${cat.name}::${item.name}`;
@@ -969,10 +1076,15 @@ function SephoraTracker() {
                                         changedKeys.includes(key) && (React.createElement("span", { style: styles.actionUpdated }, "\u25CF Updated")))));
                             }),
                             filter === "all" && (addingTo === cat.name ? (React.createElement("div", { style: styles.addForm, onClick: (e) => e.stopPropagation() },
-                                React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Product name", value: newName, onChange: (e) => setNewName(e.target.value), ref: (el) => el && el.focus({ preventScroll: true }) }),
+                                React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Product name", value: newName, onChange: (e) => {
+                                        setNewName(e.target.value);
+                                        if (addError)
+                                            setAddError("");
+                                    }, ref: (el) => el && el.focus({ preventScroll: true }) }),
                                 React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Product link (optional)", value: newLink, onChange: (e) => setNewLink(e.target.value) }),
                                 React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Color / shade (optional)", value: newShade, onChange: (e) => setNewShade(e.target.value) }),
                                 React.createElement("input", { className: "small-ph", style: styles.addInput, placeholder: "Note (optional)", value: newNote, onChange: (e) => setNewNote(e.target.value) }),
+                                addError && (React.createElement("p", { style: styles.addError }, addError)),
                                 React.createElement("div", { style: styles.addFormRow },
                                     React.createElement("button", { style: styles.addConfirmBtn, onClick: () => addProduct(cat.name) },
                                         "Add to ",
@@ -983,7 +1095,11 @@ function SephoraTracker() {
                                             setNewLink("");
                                             setNewShade("");
                                             setNewNote("");
-                                        } }, "Cancel")))) : (React.createElement("button", { style: styles.addRowBtn, onClick: () => setAddingTo(cat.name) }, "+ Add a product")))))));
+                                            setAddError("");
+                                        } }, "Cancel")))) : (React.createElement("button", { style: styles.addRowBtn, onClick: () => {
+                                    setAddingTo(cat.name);
+                                    setAddError("");
+                                } }, "+ Add a product")))))));
                 }),
                 filter !== "all" && allItems.filter((k) => visible(k)).length === 0 && (React.createElement("p", { style: styles.empty },
                     filter === "wishlist" && "Nothing on the Want to Get list yet — tap any product once to heart it ♡",
@@ -1018,7 +1134,7 @@ function SephoraTracker() {
                                     setNewCatName("");
                                 } }, "Cancel"))))),
                 React.createElement("p", { style: styles.dedication },
-                    "Sephora Staples is dedicated & devoted to the beloved Strudel. She needs nothing on this list to be the most beautiful person in the universe \u2014 yet she deserves everything on it, and the best of everything in life.",
+                    "Sephora Staples is dedicated & devoted to the beloved Strudel. She needs nothing on this list to be the most beautiful person in the universe \u2014 yet she deserves everything in it, and the best of everything in life.",
                     React.createElement("span", { style: { display: "block", marginTop: 10 } }, "\uD83D\uDC9A - T")))),
             saveStatus && (React.createElement("div", { style: {
                     ...styles.savePill,
@@ -1578,6 +1694,13 @@ const styles = {
         outline: "none",
     },
     addFormRow: { display: "flex", gap: 8 },
+    addError: {
+        margin: "0 0 8px",
+        fontSize: 12.5,
+        fontWeight: 700,
+        color: "#8C2F2F",
+        textAlign: "center",
+    },
     addConfirmBtn: {
         flex: 1,
         padding: "10px",
