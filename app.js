@@ -861,7 +861,7 @@ function SephoraTracker() {
                         " Want to Get")),
                 React.createElement("div", { style: styles.meterTube, "aria-label": `Progress: ${pct}%` },
                     React.createElement("div", { style: { ...styles.meterFill, width: `${Math.max(pct, 2)}%` } }),
-                    React.createElement("div", { style: { ...styles.meterTip, left: `calc(${Math.max(pct, 2)}% - 7px)` } }))),
+                    React.createElement("span", { style: { ...styles.meterTip, left: `${Math.max(pct, 2)}%` } }, "\uD83D\uDC84"))),
             !loaded ? (React.createElement("p", { style: styles.loading }, "Opening the vanity\u2026")) : (React.createElement("main", null,
                 allCats.map((cat, ci) => {
                     const items = [...itemsFor(cat)].sort((a, b) => ((state[`${cat.name}::${b.name}`] || 0) === 2 ? 1 : 0) -
@@ -1018,7 +1018,7 @@ function SephoraTracker() {
                                     setNewCatName("");
                                 } }, "Cancel"))))),
                 React.createElement("p", { style: styles.dedication },
-                    "Sephora Staples is dedicated & devoted to beloved Strudel. She needs nothing on this list to be the most beautiful person in the universe \u2014 yet she deserves everything on it, and the best of everything in life, for all of eternity.",
+                    "Sephora Staples is dedicated & devoted to the beloved Strudel. She needs nothing on this list to be the most beautiful person in the universe \u2014 yet she deserves everything on it, and the best of everything in life.",
                     React.createElement("span", { style: { display: "block", marginTop: 10 } }, "\uD83D\uDC9A - T")))),
             saveStatus && (React.createElement("div", { style: {
                     ...styles.savePill,
@@ -1108,13 +1108,12 @@ const styles = {
     },
     meterTip: {
         position: "absolute",
-        top: -3,
-        width: 14,
-        height: 20,
-        borderRadius: "3px 8px 2px 2px",
-        background: "#F5AFC3",
-        transform: "skewX(-8deg)",
+        top: "50%",
+        transform: "translate(-50%, -50%) rotate(-20deg)",
+        fontSize: 20,
+        lineHeight: 1,
         transition: "left 400ms ease",
+        filter: "drop-shadow(0 1px 2px rgba(154, 74, 99, 0.35))",
     },
     stickyBar: {
         background: "rgba(255,255,255,0.96)",
