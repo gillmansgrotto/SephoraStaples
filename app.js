@@ -267,6 +267,16 @@ const SEED_IN_BAG = [
     "Skin Prep::Rhode Peptide Eye Prep Patches",
     "Skin Prep::Caudalie Beauty Elixir Face Mist",
 ];
+// ====== Daily love note — one per day, the same on both phones. ======
+// These are placeholders, T: replace them with your own words. Add as many
+// as you like; the list loops. Line for the day = days-since-epoch % length.
+const LOVE_NOTES = [
+    "Looking better than any model on the Sephora site today!",
+   "Anyone fortunate enough to know you has won the jackpot in their life.",
+   "Even when having a 75% day, you work really hard that everyone around you feels they are having a 100% week.",
+   "That hilarious way you silently laugh when a gay guy got endless mimosas spilled all over his pants.",
+];
+// =====================================================================
 const LAST_SEEN_KEY = "sephora-tracker-last-seen";
 const OFFLINE_KEY = "sephora-tracker-offline-cache";
 const COLLAPSED_KEY = "sephora-tracker-collapsed";
@@ -996,6 +1006,9 @@ function SephoraTracker() {
     const grwmStepList = grwmOpen ? grwmSteps() : [];
     const grwmAllItems = grwmStepList.flatMap((s) => s.items.map((i) => `${s.cat}::${i.name}`));
     const grwmDoneCount = grwmAllItems.filter((k) => grwmChecked[k]).length;
+    // local-midnight day index so the note flips at her midnight, not UTC's
+    const noteDay = new Date();
+    const todaysNote = LOVE_NOTES[Math.floor((noteDay.getTime() - noteDay.getTimezoneOffset() * 60000) / 86400000) % LOVE_NOTES.length];
     const q = sectionQuery.trim().toLowerCase();
     const sectionMatches = q
         ? allCats.filter((c) => c.name.toLowerCase().includes(q) ||
@@ -1007,7 +1020,10 @@ function SephoraTracker() {
             React.createElement("header", { style: styles.header },
                 React.createElement("div", { style: styles.eyebrow }, "ROSE KELLEY'S"),
                 React.createElement("h1", { style: styles.title }, "Sephora Staples"),
-                React.createElement("p", { style: styles.tagline }, "Because she deserves the best of everything")),
+                React.createElement("p", { style: styles.tagline }, "Because she deserves the best of everything"),
+                React.createElement("div", { style: styles.loveNote },
+                    React.createElement("span", { style: styles.loveNoteLabel }, "💌 TODAY'S NOTE"),
+                    React.createElement("p", { style: styles.loveNoteText }, todaysNote))),
             showHelp && (React.createElement("div", { style: styles.helpCard },
                 React.createElement("div", { style: { ...styles.helpTitle, cursor: "pointer" }, onClick: () => updateHelpCollapsed(!helpCollapsed), role: "button", "aria-expanded": !helpCollapsed },
                     "The Basics",
@@ -1422,6 +1438,31 @@ const styles = {
         lineHeight: 1.3,
     },
     subtitle: { fontSize: 13, color: "#7A5E66", margin: "6px 0 0", lineHeight: 1.5 },
+    loveNote: {
+        margin: "14px auto 0",
+        maxWidth: 420,
+        padding: "10px 18px 12px",
+        background: "#FFFFFF",
+        border: "1.5px dashed #F5AFC3",
+        borderRadius: 14,
+    },
+    loveNoteLabel: {
+        display: "block",
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.22em",
+        color: "#9E7238",
+        marginBottom: 4,
+    },
+    loveNoteText: {
+        fontFamily: "'Cormorant Garamond', serif",
+        fontStyle: "italic",
+        fontWeight: 500,
+        fontSize: 17,
+        color: "#9C4A63",
+        margin: 0,
+        lineHeight: 1.45,
+    },
     meterWrap: { margin: "0 4px 18px" },
     meterCard: {
         padding: "14px 16px 16px",
