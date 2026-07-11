@@ -184,6 +184,28 @@ const CATEGORIES = [
         ] },
 ];
 const sephoraUrl = (q) => `https://www.sephora.com/search?keyword=${encodeURIComponent(q)}`;
+// Little celebration burst — hearts and sparkles from (x, y), or from up top if no point given
+const CONFETTI_EMOJI = ["💖", "✨", "💋", "🌸", "💕", "⭐"];
+function burstConfetti(x, y, count) {
+    const cx = typeof x === "number" ? x : window.innerWidth / 2;
+    const cy = typeof y === "number" ? y : window.innerHeight / 3;
+    for (let i = 0; i < count; i++) {
+        const el = document.createElement("span");
+        el.className = "confetti-bit";
+        el.textContent = CONFETTI_EMOJI[Math.floor(Math.random() * CONFETTI_EMOJI.length)];
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 60 + Math.random() * 90;
+        el.style.left = `${cx}px`;
+        el.style.top = `${cy}px`;
+        el.style.setProperty("--dx", `${Math.cos(angle) * dist}px`);
+        el.style.setProperty("--dy", `${Math.sin(angle) * dist - 40}px`);
+        el.style.setProperty("--rot", `${Math.random() * 240 - 120}deg`);
+        el.style.fontSize = `${12 + Math.random() * 10}px`;
+        el.style.animationDuration = `${700 + Math.random() * 500}ms`;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 1400);
+    }
+}
 // Application order — the sequence you'd actually use them getting ready
 const APPLICATION_ORDER = [
     "Skin Prep",
@@ -248,6 +270,7 @@ const SEED_IN_BAG = [
 const LAST_SEEN_KEY = "sephora-tracker-last-seen";
 const OFFLINE_KEY = "sephora-tracker-offline-cache";
 const COLLAPSED_KEY = "sephora-tracker-collapsed";
+const GRWM_KEY = "sephora-tracker-grwm"; // per-device Get Ready With Me checklist, resets daily
 // Collapse/expand is a per-device preference, kept in localStorage (not the shared DB)
 const loadCollapsedLocal = () => {
     try {
@@ -283,6 +306,7 @@ function SephoraTracker() {
     const [editingShade, setEditingShade] = useState(null); // itemKey being edited
     const [shadeText, setShadeText] = useState("");
     const [stars, setStars] = useState({}); // { [itemKey]: true }
+    const [low, setLow] = useState({}); // { [itemKey]: true } — running low, needs a restock
     const [notes, setNotes] = useState({}); // { [itemKey]: "note text" }
     const [editingNote, setEditingNote] = useState(null);
     const [noteText, setNoteText] = useState("");
@@ -340,12 +364,20 @@ function SephoraTracker() {
     const [copyFallback, setCopyFallback] = useState("");
     const [addError, setAddError] = useState("");
     const [confirmingRemoveCat, setConfirmingRemoveCat] = useState(null);
+    const [grwmOpen, setGrwmOpen] = useState(false);
+    const [grwmIdx, setGrwmIdx] = useState(0); // current step; steps.length = "all done" screen
+    const [grwmChecked, setGrwmChecked] = useState({}); // { [itemKey]: true } — today only, this device only
+    const [rouletteOpen, setRouletteOpen] = useState(false);
+    const [rouletteName, setRouletteName] = useState(""); // name flashing by while the wheel spins
+    const [roulettePick, setRoulettePick] = useState(null); // final { key, name, catName, url, q }
+    const rouletteTimer = useRef(null);
     const loadShared = async () => {
         let statuses = {};
         let customItems = {};
         let removedKeys = [];
         let shadeMap = {};
         let starMap = {};
+        let lowMap = {};
         let noteMap = {};
         let nameMap = {};
         let updatedMap = {};
@@ -390,6 +422,7 @@ function SephoraTracker() {
                 removedKeys = parsed.removed || [];
                 shadeMap = parsed.shades || {};
                 starMap = parsed.stars || {};
+                lowMap = parsed.low || {};
                 noteMap = parsed.notes || {};
                 nameMap = parsed.names || {};
                 updatedMap = parsed.updatedAt || {};
@@ -451,6 +484,7 @@ function SephoraTracker() {
         setRemoved(removedKeys);
         setShades(shadeMap);
         setStars(starMap);
+        setLow(lowMap);
         setNotes(noteMap);
         setNames(nameMap);
         setUpdatedAt(updatedMap);
@@ -469,7 +503,7 @@ function SephoraTracker() {
                 const seedResp = await fetch(`${DB_URL}/tracker.json`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json", "X-Firebase-ETag": "true" },
-                    body: JSON.stringify(JSON.stringify({ statuses, custom: customItems, removed: removedKeys, shades: shadeMap, stars: starMap, notes: noteMap, updatedAt: updatedMap, seeded: true, seededV2: true })),
+                    body: JSON.stringify(JSON.stringify({ statuses, custom: customItems, removed: removedKeys, shades: shadeMap, stars: starMap, low: lowMap, notes: noteMap, updatedAt: updatedMap, seeded: true, seededV2: true })),
                 });
                 if (seedResp.ok)
                     dbEtag.current = seedResp.headers.get("ETag");
@@ -488,6 +522,7 @@ function SephoraTracker() {
         setRemoved(data.removed);
         setShades(data.shades);
         setStars(data.stars);
+        setLow(data.low);
         setNotes(data.notes);
         setNames(data.names);
         setUpdatedAt(data.updatedAt);
@@ -506,6 +541,7 @@ function SephoraTracker() {
             removed: changes.removed !== undefined ? changes.removed : base.removed,
             shades: changes.shades !== undefined ? changes.shades : base.shades,
             stars: changes.stars !== undefined ? changes.stars : base.stars,
+            low: changes.low !== undefined ? changes.low : base.low,
             notes: changes.notes !== undefined ? changes.notes : base.notes,
             names: changes.names !== undefined ? changes.names : base.names,
             updatedAt: changes.updatedAt !== undefined ? changes.updatedAt : base.updatedAt,
@@ -513,7 +549,7 @@ function SephoraTracker() {
             seeded: true,
             seededV2: true,
         });
-        let data = buildData({ statuses: state, custom, removed, shades, stars, notes, names, updatedAt, customCats });
+        let data = buildData({ statuses: state, custom, removed, shades, stars, low, notes, names, updatedAt, customCats });
         applyLocal(data);
         const putData = (d) => fetch(`${DB_URL}/tracker.json`, {
             method: "PUT",
@@ -543,6 +579,7 @@ function SephoraTracker() {
                     removed: server.removed || [],
                     shades: server.shades || {},
                     stars: server.stars || {},
+                    low: server.low || {},
                     notes: server.notes || {},
                     names: server.names || {},
                     updatedAt: server.updatedAt || {},
@@ -616,12 +653,36 @@ function SephoraTracker() {
             next[key] = true;
         persist({ stars: next, updatedAt: touch(key) });
     };
-    const cycle = (key) => {
+    const cycle = (key, ev) => {
         const cur = state[key] || 0;
-        const next = { ...state, [key]: (cur + 1) % 3 };
-        if (next[key] === 0)
+        const nextStatus = (cur + 1) % 3;
+        const next = { ...state, [key]: nextStatus };
+        if (nextStatus === 0)
             delete next[key];
-        persist({ statuses: next, updatedAt: touch(key) });
+        const changes = { statuses: next, updatedAt: touch(key) };
+        if (nextStatus !== 2 && low[key]) {
+            // left the makeup bag — "running low" no longer applies
+            const nextLow = { ...low };
+            delete nextLow[key];
+            changes.low = nextLow;
+        }
+        persist(changes);
+        if (nextStatus === 2) {
+            const catName = key.split("::")[0];
+            const cat = allCats.find((c) => c.name === catName);
+            const catDone = cat && itemsFor(cat).every((i) => (next[`${catName}::${i.name}`] || 0) === 2);
+            const x = ev && typeof ev.clientX === "number" && ev.clientX > 0 ? ev.clientX : undefined;
+            const y = ev && typeof ev.clientY === "number" && ev.clientY > 0 ? ev.clientY : undefined;
+            burstConfetti(x, y, catDone ? 36 : 14);
+        }
+    };
+    const toggleLow = (key) => {
+        const next = { ...low };
+        if (next[key])
+            delete next[key];
+        else
+            next[key] = true;
+        persist({ low: next, updatedAt: touch(key) });
     };
     const addProduct = (catName) => {
         const name = newName.trim();
@@ -661,11 +722,13 @@ function SephoraTracker() {
         delete nextShades[key];
         const nextStars = { ...stars };
         delete nextStars[key];
+        const nextLow = { ...low };
+        delete nextLow[key];
         const nextNotes = { ...notes };
         delete nextNotes[key];
         const nextNames = { ...names };
         delete nextNames[key];
-        const base = { statuses: nextStatuses, shades: nextShades, stars: nextStars, notes: nextNotes, names: nextNames, updatedAt: touch(key) };
+        const base = { statuses: nextStatuses, shades: nextShades, stars: nextStars, low: nextLow, notes: nextNotes, names: nextNames, updatedAt: touch(key) };
         if (item.isCustom) {
             const list = (custom[catName] || []).filter((i) => i.name !== item.name);
             const nextCustom = { ...custom, [catName]: list };
@@ -701,7 +764,93 @@ function SephoraTracker() {
     const scrollToTop = () => {
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
-    const FILTER_TITLES = { all: "Staples", wishlist: "Want to Get", owned: "Makeup Bag", starred: "Top Picks" };
+    const FILTER_TITLES = { all: "Staples", wishlist: "Want to Get", owned: "Makeup Bag", starred: "Top Picks", low: "Restock" };
+    // Get Ready With Me — the makeup bag as a step-by-step routine, in application order
+    const grwmSteps = () => allCats
+        .map((cat) => ({ cat: cat.name, items: itemsFor(cat).filter((i) => state[`${cat.name}::${i.name}`] === 2) }))
+        .filter((s) => s.items.length > 0);
+    const saveGrwm = (checked, idx) => {
+        try {
+            localStorage.setItem(GRWM_KEY, JSON.stringify({ date: new Date().toDateString(), checked, idx }));
+        }
+        catch (e) { }
+    };
+    const openGrwm = () => {
+        let checked = {};
+        let idx = 0;
+        try {
+            const saved = JSON.parse(localStorage.getItem(GRWM_KEY) || "null");
+            if (saved && saved.date === new Date().toDateString()) {
+                checked = saved.checked || {};
+                idx = saved.idx || 0;
+            }
+        }
+        catch (e) { }
+        setGrwmChecked(checked);
+        setGrwmIdx(Math.max(0, Math.min(idx, grwmSteps().length)));
+        setGrwmOpen(true);
+    };
+    const goGrwm = (idx) => {
+        setGrwmIdx(idx);
+        saveGrwm(grwmChecked, idx);
+    };
+    const restartGrwm = () => {
+        setGrwmChecked({});
+        setGrwmIdx(0);
+        saveGrwm({}, 0);
+    };
+    const toggleGrwmCheck = (key) => {
+        const steps = grwmSteps();
+        const next = { ...grwmChecked };
+        if (next[key])
+            delete next[key];
+        else
+            next[key] = true;
+        setGrwmChecked(next);
+        const step = steps[grwmIdx];
+        let idx = grwmIdx;
+        if (next[key] && step && step.items.every((i) => next[`${step.cat}::${i.name}`])) {
+            // step complete — a little celebration, then glide to the next one
+            idx = grwmIdx + 1;
+            burstConfetti(undefined, window.innerHeight / 2.5, idx >= steps.length ? 36 : 10);
+            setTimeout(() => setGrwmIdx(idx), 450);
+        }
+        saveGrwm(next, idx);
+    };
+    // Treat Yourself roulette — spin through the wishlist and land on tonight's splurge
+    const spinRoulette = () => {
+        const pool = allCats.flatMap((cat) => itemsFor(cat)
+            .filter((i) => state[`${cat.name}::${i.name}`] === 1)
+            .map((i) => ({ ...i, catName: cat.name, key: `${cat.name}::${i.name}` })));
+        clearTimeout(rouletteTimer.current);
+        setRouletteOpen(true);
+        setRoulettePick(null);
+        setRouletteName("");
+        if (pool.length === 0)
+            return;
+        const finalPick = pool[Math.floor(Math.random() * pool.length)];
+        let step = 0;
+        const total = pool.length === 1 ? 1 : 14;
+        const tick = () => {
+            step++;
+            if (step >= total) {
+                setRouletteName("");
+                setRoulettePick(finalPick);
+                burstConfetti(undefined, window.innerHeight / 2.4, 18);
+                return;
+            }
+            const flash = pool[Math.floor(Math.random() * pool.length)];
+            setRouletteName(names[flash.key] || flash.name);
+            rouletteTimer.current = setTimeout(tick, 60 + step * 22);
+        };
+        tick();
+    };
+    const closeRoulette = () => {
+        clearTimeout(rouletteTimer.current);
+        setRouletteOpen(false);
+        setRoulettePick(null);
+        setRouletteName("");
+    };
     const copyWishlist = async () => {
         const lines = [];
         allCats.forEach((cat) => {
@@ -745,7 +894,7 @@ function SephoraTracker() {
             return;
         }
         setConfirmingReset(false);
-        persist({ statuses: {} });
+        persist({ statuses: {}, low: {} });
     };
     const itemsFor = (cat) => [
         ...cat.items.filter((i) => !removed.includes(`${cat.name}::${i.name}`)),
@@ -807,6 +956,7 @@ function SephoraTracker() {
             shades: clean(shades),
             notes: clean(notes),
             stars: clean(stars),
+            low: clean(low),
             names: clean(names),
             updatedAt: clean(updatedAt),
         });
@@ -829,6 +979,7 @@ function SephoraTracker() {
     const ownedCount = allItems.filter((k) => state[k] === 2).length;
     const wishCount = allItems.filter((k) => state[k] === 1).length;
     const starCount = allItems.filter((k) => stars[k]).length;
+    const lowCount = allItems.filter((k) => low[k]).length;
     const pct = allItems.length ? Math.round((ownedCount / allItems.length) * 100) : 0;
     const visible = (key) => {
         const s = state[key] || 0;
@@ -838,8 +989,13 @@ function SephoraTracker() {
             return s === 2;
         if (filter === "starred")
             return !!stars[key];
+        if (filter === "low")
+            return !!low[key];
         return true;
     };
+    const grwmStepList = grwmOpen ? grwmSteps() : [];
+    const grwmAllItems = grwmStepList.flatMap((s) => s.items.map((i) => `${s.cat}::${i.name}`));
+    const grwmDoneCount = grwmAllItems.filter((k) => grwmChecked[k]).length;
     const q = sectionQuery.trim().toLowerCase();
     const sectionMatches = q
         ? allCats.filter((c) => c.name.toLowerCase().includes(q) ||
@@ -908,6 +1064,20 @@ function SephoraTracker() {
                         "- ",
                         React.createElement("b", null, "Copy List \uD83D\uDCCB"),
                         " copies whichever view you're on \u2014 colors and notes included"),
+                    React.createElement("p", { style: styles.helpLine },
+                        "- ",
+                        React.createElement("b", null, "\uD83E\uDEAB"),
+                        " on something In the Bag marks it running low \u2014 the ",
+                        React.createElement("b", null, "Running Low"),
+                        " tab shows what to restock"),
+                    React.createElement("p", { style: styles.helpLine },
+                        "- Feeling fancy? ",
+                        React.createElement("b", null, "Treat Yourself \uD83C\uDFB0"),
+                        " spins the wishlist and picks tonight's splurge"),
+                    React.createElement("p", { style: styles.helpLine },
+                        "- ",
+                        React.createElement("b", null, "Get Ready With Me \uD83D\uDC84"),
+                        " walks the makeup bag step by step in the order you'd apply it \u2014 checks reset each morning"),
                     React.createElement("p", { style: { ...styles.helpLine, fontStyle: "italic", color: "#D2688A", textAlign: "center", marginTop: 8 } }, "And obviously there is nothing basic about Strudel \u2014 you're the most unique person there ever will be!"),
                     React.createElement("button", { style: styles.helpGotIt, onClick: dismissHelp }, "Got it \uD83D\uDC8B"))))),
             React.createElement("div", { style: styles.stickyBar },
@@ -916,6 +1086,7 @@ function SephoraTracker() {
                     ["owned", `In Makeup Bag 👛${ownedCount ? ` (${ownedCount})` : ""}`],
                     ["wishlist", `Want to Get ♡${wishCount ? ` (${wishCount})` : ""}`],
                     ["starred", `Top Picks ★${starCount ? ` (${starCount})` : ""}`],
+                    ...(lowCount > 0 || filter === "low" ? [["low", `Running Low 🪫${lowCount ? ` (${lowCount})` : ""}`]] : []),
                 ].map(([val, label]) => (React.createElement("button", { key: val, role: "tab", "aria-selected": filter === val, onClick: (e) => {
                         setFilter(val);
                         e.currentTarget.blur();
@@ -964,7 +1135,8 @@ function SephoraTracker() {
                         " Want to Get")),
                 React.createElement("div", { style: styles.meterTube, "aria-label": `Progress: ${pct}%` },
                     React.createElement("div", { style: { ...styles.meterFill, width: `${Math.max(pct, 2)}%` } }),
-                    React.createElement("span", { style: { ...styles.meterTip, left: `${Math.max(pct, 2)}%` } }, "\uD83D\uDC84"))),
+                    React.createElement("span", { style: { ...styles.meterTip, left: `${Math.max(pct, 2)}%` } }, "\uD83D\uDC84")),
+                loaded && ownedCount > 0 && (React.createElement("button", { style: styles.grwmBtn, onClick: openGrwm }, "Get Ready With Me \uD83D\uDC84"))),
             !loaded ? (React.createElement("p", { style: styles.loading }, "Opening the vanity\u2026")) : (React.createElement("main", null,
                 allCats.map((cat, ci) => {
                     const items = [...itemsFor(cat)].sort((a, b) => ((state[`${cat.name}::${b.name}`] || 0) === 2 ? 1 : 0) -
@@ -1006,7 +1178,7 @@ function SephoraTracker() {
                                 if (!visible(key))
                                     return null;
                                 const s = state[key] || 0;
-                                return (React.createElement("div", { key: key, onClick: () => cycle(key), role: "button", tabIndex: 0, onKeyDown: (e) => {
+                                return (React.createElement("div", { key: key, onClick: (e) => cycle(key, e), role: "button", tabIndex: 0, onKeyDown: (e) => {
                                         if (e.target !== e.currentTarget)
                                             return;
                                         if (e.key === "Enter" || e.key === " ")
@@ -1066,10 +1238,12 @@ function SephoraTracker() {
                                                     e.stopPropagation();
                                                     setEditingNote(key);
                                                     setNoteText(notes[key] || "");
-                                                } }, notes[key] ? `📝 ${notes[key]} ✎` : "+ add note")))),
+                                                } }, notes[key] ? `📝 ${notes[key]} ✎` : "+ add note"))),
+                                        low[key] && (React.createElement("span", { style: styles.lowTag }, "🪫 running low"))),
                                     React.createElement("div", { style: styles.actionCol, onClick: (e) => e.stopPropagation() },
                                         React.createElement("a", { href: item.url || sephoraUrl(item.q), target: "_blank", rel: "noopener noreferrer", style: styles.shopLink, "aria-label": `Shop ${item.name} on Sephora` }, "Shop \uD83D\uDECD\uFE0F"),
                                         React.createElement("div", { style: styles.actionIcons },
+                                            s === 2 && (React.createElement("button", { onClick: () => toggleLow(key), style: { ...styles.lowBtn, ...(low[key] ? styles.lowBtnActive : {}) }, "aria-label": low[key] ? `${item.name} restocked` : `Mark ${item.name} as running low`, title: low[key] ? "Restocked!" : "Running low?" }, "🪫")),
                                             React.createElement("button", { onClick: () => toggleStar(key), style: { ...styles.starBtn, ...(stars[key] ? styles.starBtnActive : {}) }, "aria-label": stars[key] ? `Unstar ${item.name}` : `Star ${item.name} as a top pick` }, stars[key] ? "★" : "☆"),
                                             React.createElement("button", { onClick: () => removeProduct(cat.name, item), style: styles.removeBtn, "aria-label": `Remove ${item.name}` }, "\u00D7")),
                                         React.createElement("span", { style: styles.actionStatus }, STATUS[s].label),
@@ -1104,9 +1278,11 @@ function SephoraTracker() {
                 filter !== "all" && allItems.filter((k) => visible(k)).length === 0 && (React.createElement("p", { style: styles.empty },
                     filter === "wishlist" && "Nothing on the Want to Get list yet — tap any product once to heart it ♡",
                     filter === "owned" && "Nothing in the makeup bag yet — tap a product twice to add it 👛",
-                    filter === "starred" && "No Top Picks yet — tap the ☆ on a favorite to crown it ★")),
+                    filter === "starred" && "No Top Picks yet — tap the ☆ on a favorite to crown it ★",
+                    filter === "low" && "Nothing running low — the vanity is fully stocked ✨")),
                 React.createElement("div", { style: styles.bottomCard },
                     React.createElement("div", { style: styles.bottomActions },
+                        React.createElement("button", { onClick: spinRoulette, style: styles.rouletteBtn }, "Treat Yourself 🎰"),
                         React.createElement("button", { onClick: copyWishlist, style: styles.syncBtn }, copied ? "Copied! 💕" : `Copy ${FILTER_TITLES[filter]} List 📋`),
                         copyFallback && (React.createElement("div", { style: styles.copyFallbackWrap },
                             React.createElement("p", { style: styles.footnote }, "Couldn't reach the clipboard \u2014 long-press to copy from here:"),
@@ -1136,6 +1312,65 @@ function SephoraTracker() {
                 React.createElement("p", { style: styles.dedication },
                     "Sephora Staples is dedicated & devoted to the beloved Strudel. She needs nothing on this list to be the most beautiful person in the universe \u2014 yet she deserves everything in it, and the best of everything in life.",
                     React.createElement("span", { style: { display: "block", marginTop: 10 } }, "\uD83D\uDC9A - T")))),
+            grwmOpen && (React.createElement("div", { style: styles.rouletteOverlay, onClick: () => setGrwmOpen(false) },
+                React.createElement("div", { className: "roulette-pop", style: styles.grwmCard, onClick: (e) => e.stopPropagation() },
+                    React.createElement("div", { style: styles.rouletteTitle }, "Get Ready With Me 💄"),
+                    grwmStepList.length === 0 ? (React.createElement("div", null,
+                        React.createElement("p", { style: styles.rouletteSub }, "Nothing in the makeup bag yet — tap a product twice to add it 👛"),
+                        React.createElement("button", { style: styles.rouletteCloseBtn, onClick: () => setGrwmOpen(false) }, "Close"))) : grwmIdx >= grwmStepList.length ? (React.createElement("div", null,
+                        React.createElement("p", { style: styles.grwmDoneTitle }, "Routine complete 💋"),
+                        React.createElement("p", { style: styles.rouletteSub }, "Gorgeous. Obviously. Go get 'em."),
+                        React.createElement("div", { style: styles.rouletteActions },
+                            React.createElement("button", { style: styles.rouletteAgainBtn, onClick: restartGrwm }, "Start over"),
+                            React.createElement("button", { style: styles.rouletteAgainBtn, onClick: () => setGrwmOpen(false) }, "Done")))) : (React.createElement("div", null,
+                        React.createElement("p", { style: styles.grwmStepLabel },
+                            "Step ",
+                            grwmIdx + 1,
+                            " of ",
+                            grwmStepList.length,
+                            " · ",
+                            grwmDoneCount,
+                            "/",
+                            grwmAllItems.length,
+                            " done today"),
+                        React.createElement("div", { style: styles.grwmProgressOuter },
+                            React.createElement("div", { style: { ...styles.grwmProgressInner, width: `${grwmAllItems.length ? Math.round((grwmDoneCount / grwmAllItems.length) * 100) : 0}%` } })),
+                        React.createElement("p", { style: styles.grwmCatName }, grwmStepList[grwmIdx].cat),
+                        grwmStepList[grwmIdx].items.map((item) => {
+                            const key = `${grwmStepList[grwmIdx].cat}::${item.name}`;
+                            const done = !!grwmChecked[key];
+                            return (React.createElement("div", { key: key, role: "button", tabIndex: 0, onClick: () => toggleGrwmCheck(key), onKeyDown: (e) => {
+                                    if (e.key === "Enter" || e.key === " ")
+                                        toggleGrwmCheck(key);
+                                }, style: { ...styles.grwmItem, ...(done ? styles.grwmItemDone : {}) }, "aria-label": `${names[key] || item.name}: ${done ? "done" : "tap when applied"}` },
+                                React.createElement("span", { style: { ...styles.grwmCheck, ...(done ? styles.grwmCheckDone : {}) } }, done ? "✓" : ""),
+                                React.createElement("span", { style: { flex: 1, minWidth: 0 } },
+                                    React.createElement("span", { style: { ...styles.grwmItemName, ...(done ? { textDecoration: "line-through", opacity: 0.6 } : {}) } }, names[key] || item.name),
+                                    shades[key] && (React.createElement("span", { style: styles.grwmItemShade }, shades[key])),
+                                    notes[key] && (React.createElement("span", { style: styles.grwmItemNote }, `📝 ${notes[key]}`)))));
+                        }),
+                        React.createElement("div", { style: styles.rouletteActions },
+                            React.createElement("button", { style: { ...styles.rouletteAgainBtn, ...(grwmIdx === 0 ? { opacity: 0.45 } : {}) }, disabled: grwmIdx === 0, onClick: () => goGrwm(grwmIdx - 1) }, "◂ Back"),
+                            React.createElement("button", { style: styles.rouletteAgainBtn, onClick: () => goGrwm(grwmIdx + 1) }, grwmStepList[grwmIdx].items.every((i) => grwmChecked[`${grwmStepList[grwmIdx].cat}::${i.name}`]) ? "Next ▸" : "Skip ▸")),
+                        React.createElement("button", { style: styles.rouletteCloseBtn, onClick: () => setGrwmOpen(false) }, "Save & close")))))),
+            rouletteOpen && (React.createElement("div", { style: styles.rouletteOverlay, onClick: closeRoulette },
+                React.createElement("div", { className: "roulette-pop", style: styles.rouletteCard, onClick: (e) => e.stopPropagation() },
+                    React.createElement("div", { style: styles.rouletteTitle }, "Treat Yourself 🎰"),
+                    roulettePick ? (React.createElement("div", null,
+                        React.createElement("p", { style: styles.rouletteSub }, "The wheel has spoken — tonight's splurge is:"),
+                        React.createElement("p", { style: styles.roulettePickName }, names[roulettePick.key] || roulettePick.name),
+                        React.createElement("p", { style: styles.rouletteCatLine },
+                            roulettePick.catName,
+                            shades[roulettePick.key] ? ` · ${shades[roulettePick.key]}` : ""),
+                        notes[roulettePick.key] && (React.createElement("p", { style: styles.rouletteNote }, `📝 ${notes[roulettePick.key]}`)),
+                        React.createElement("div", { style: styles.rouletteActions },
+                            React.createElement("a", { href: roulettePick.url || sephoraUrl(roulettePick.q), target: "_blank", rel: "noopener noreferrer", style: styles.rouletteShopBtn }, "Shop it 🛍️"),
+                            React.createElement("button", { style: styles.rouletteAgainBtn, onClick: spinRoulette }, "Spin again")),
+                        React.createElement("button", { style: styles.rouletteCloseBtn, onClick: closeRoulette }, "Close"))) : rouletteName ? (React.createElement("div", null,
+                        React.createElement("p", { style: styles.rouletteSub }, "Spinning…"),
+                        React.createElement("p", { style: styles.rouletteSpinName }, rouletteName))) : (React.createElement("div", null,
+                        React.createElement("p", { style: styles.rouletteSub }, "Nothing on the Want to Get list yet — heart something first ♡"),
+                        React.createElement("button", { style: styles.rouletteCloseBtn, onClick: closeRoulette }, "Close")))))),
             saveStatus && (React.createElement("div", { style: {
                     ...styles.savePill,
                     ...(saveStatus === "error" ? styles.savePillError : {}),
@@ -1494,6 +1729,216 @@ const styles = {
         justifyContent: "center",
     },
     starBtnActive: { borderColor: "#B98A4E", color: "#B98A4E", background: "#FDF9F2" },
+    lowBtn: {
+        flexShrink: 0,
+        width: 28,
+        height: 28,
+        borderRadius: "50%",
+        border: "1px solid #F5D8E0",
+        background: "transparent",
+        fontSize: 13,
+        lineHeight: 1,
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        filter: "grayscale(1) opacity(0.45)",
+    },
+    lowBtnActive: { borderColor: "#C4385B", background: "#FDECEA", filter: "none" },
+    lowTag: {
+        display: "inline-block",
+        marginTop: 4,
+        padding: "2px 8px",
+        borderRadius: 999,
+        background: "#FDECEA",
+        border: "1px solid #F2C4C4",
+        color: "#8C2F2F",
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: "0.03em",
+    },
+    rouletteBtn: {
+        display: "block",
+        margin: 0,
+        flex: "1 1 100%",
+        background: "linear-gradient(135deg, #F4DCC3 0%, #EBC9AC 50%, #E0B698 100%)",
+        border: "1px solid #EBC9AC",
+        color: "#6B4423",
+        borderRadius: 999,
+        padding: "10px 22px",
+        fontSize: 14,
+        fontWeight: 700,
+        fontFamily: "'Karla', sans-serif",
+        cursor: "pointer",
+        boxShadow: "0 1px 4px rgba(154, 74, 99, 0.12)",
+    },
+    rouletteOverlay: {
+        position: "fixed",
+        inset: 0,
+        zIndex: 50,
+        background: "rgba(43, 27, 32, 0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+    },
+    rouletteCard: {
+        width: "100%",
+        maxWidth: 330,
+        background: "linear-gradient(180deg, #FFFFFF 0%, #FDF1F4 100%)",
+        border: "1px solid #F8E3E9",
+        borderRadius: 20,
+        padding: "22px 20px",
+        textAlign: "center",
+        boxShadow: "0 10px 40px rgba(43, 27, 32, 0.3)",
+    },
+    rouletteTitle: {
+        fontFamily: "'Cormorant Garamond', serif",
+        fontStyle: "italic",
+        fontWeight: 600,
+        fontSize: 24,
+        color: "#D2688A",
+        marginBottom: 10,
+    },
+    rouletteSub: { fontSize: 13, color: "#7A5E66", margin: "0 0 10px", lineHeight: 1.5 },
+    rouletteSpinName: {
+        fontFamily: "'Cormorant Garamond', serif",
+        fontStyle: "italic",
+        fontSize: 21,
+        color: "#9C4A63",
+        margin: 0,
+        minHeight: 30,
+    },
+    roulettePickName: {
+        fontFamily: "'Cormorant Garamond', serif",
+        fontWeight: 600,
+        fontSize: 24,
+        color: "#2B1B20",
+        margin: "0 0 4px",
+        lineHeight: 1.25,
+    },
+    rouletteCatLine: { fontSize: 12.5, fontWeight: 700, color: "#9E7238", letterSpacing: "0.05em", margin: "0 0 6px" },
+    rouletteNote: { fontSize: 12.5, fontStyle: "italic", color: "#7A5E66", margin: "0 0 6px" },
+    rouletteActions: { display: "flex", gap: 8, justifyContent: "center", marginTop: 12 },
+    rouletteShopBtn: {
+        flex: 1,
+        padding: "10px",
+        background: "#F5AFC3",
+        border: "1px solid #F5AFC3",
+        borderRadius: 999,
+        color: "#7A2E48",
+        fontSize: 13,
+        fontWeight: 700,
+        fontFamily: "'Karla', sans-serif",
+        textDecoration: "none",
+        cursor: "pointer",
+    },
+    rouletteAgainBtn: {
+        flex: 1,
+        padding: "10px",
+        background: "#FBD5DF",
+        border: "1px solid #F5AFC3",
+        borderRadius: 999,
+        color: "#9C4A63",
+        fontSize: 13,
+        fontWeight: 700,
+        fontFamily: "'Karla', sans-serif",
+        cursor: "pointer",
+    },
+    grwmBtn: {
+        display: "block",
+        width: "100%",
+        marginTop: 14,
+        padding: "11px",
+        background: "#F5AFC3",
+        border: "1px solid #F5AFC3",
+        borderRadius: 999,
+        color: "#7A2E48",
+        fontSize: 14,
+        fontWeight: 700,
+        fontFamily: "'Karla', sans-serif",
+        cursor: "pointer",
+        boxShadow: "0 1px 4px rgba(154, 74, 99, 0.15)",
+    },
+    grwmCard: {
+        width: "100%",
+        maxWidth: 360,
+        maxHeight: "82vh",
+        overflowY: "auto",
+        background: "linear-gradient(180deg, #FFFFFF 0%, #FDF1F4 100%)",
+        border: "1px solid #F8E3E9",
+        borderRadius: 20,
+        padding: "20px 18px",
+        textAlign: "center",
+        boxShadow: "0 10px 40px rgba(43, 27, 32, 0.3)",
+    },
+    grwmStepLabel: { fontSize: 11.5, fontWeight: 700, letterSpacing: "0.08em", color: "#9E7238", margin: "0 0 8px" },
+    grwmProgressOuter: {
+        height: 8,
+        borderRadius: 6,
+        background: "#FDEFF3",
+        border: "1px solid #F5D8E0",
+        overflow: "hidden",
+        marginBottom: 14,
+    },
+    grwmProgressInner: { height: "100%", background: "#F5AFC3", transition: "width 300ms ease" },
+    grwmCatName: {
+        fontFamily: "'Cormorant Garamond', serif",
+        fontWeight: 600,
+        fontSize: 26,
+        color: "#D2688A",
+        margin: "0 0 12px",
+        lineHeight: 1.2,
+    },
+    grwmItem: {
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        textAlign: "left",
+        background: "#FFFFFF",
+        border: "1px solid #F1DFE0",
+        borderRadius: 12,
+        padding: "12px 14px",
+        marginBottom: 8,
+        cursor: "pointer",
+    },
+    grwmItemDone: { borderColor: "#F5AFC3", background: "#FDEFF3" },
+    grwmCheck: {
+        flexShrink: 0,
+        width: 26,
+        height: 26,
+        borderRadius: "50%",
+        border: "1.5px solid #E0BFC7",
+        color: "#7A2E48",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 14,
+        fontWeight: 700,
+    },
+    grwmCheckDone: { borderColor: "#F5AFC3", background: "#F5AFC3" },
+    grwmItemName: { display: "block", fontSize: 14.5, lineHeight: 1.35, color: "#2B1B20", overflowWrap: "break-word" },
+    grwmItemShade: { display: "block", fontSize: 13, fontWeight: 700, color: "#9C4A63", marginTop: 2 },
+    grwmItemNote: { display: "block", fontSize: 12.5, fontStyle: "italic", color: "#7A5E66", marginTop: 2 },
+    grwmDoneTitle: {
+        fontFamily: "'Cormorant Garamond', serif",
+        fontWeight: 600,
+        fontStyle: "italic",
+        fontSize: 26,
+        color: "#9C4A63",
+        margin: "6px 0 4px",
+    },
+    rouletteCloseBtn: {
+        marginTop: 10,
+        padding: "8px 22px",
+        background: "transparent",
+        border: "1px solid #E7CDD0",
+        borderRadius: 999,
+        color: "#7A5E66",
+        fontSize: 12.5,
+        fontFamily: "'Karla', sans-serif",
+        cursor: "pointer",
+    },
     copyFallbackWrap: { marginTop: 12, flexBasis: "100%" },
     copyFallbackBox: {
         display: "block",
