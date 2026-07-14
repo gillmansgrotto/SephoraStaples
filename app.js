@@ -325,6 +325,7 @@ function SephoraTracker() {
     const [nameText, setNameText] = useState("");
     const [updatedAt, setUpdatedAt] = useState({}); // { [itemKey]: timestamp }
     const [changedKeys, setChangedKeys] = useState([]); // keys changed since this device last looked
+    const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false); // "Rose updated the list" banner, re-armed on every load
     const [collapsed, setCollapsed] = useState(() => loadCollapsedLocal() || {}); // { [catName]: true }
     const [collapsedInit, setCollapsedInit] = useState(() => loadCollapsedLocal() !== null);
     const dbEtag = useRef(null); // last known ETag of /tracker.json — used for conflict-safe saves
@@ -483,6 +484,7 @@ function SephoraTracker() {
             // first visit on this device
         }
         setChangedKeys(lastSeen > 0 ? Object.keys(updatedMap).filter((k) => updatedMap[k] > lastSeen) : []);
+        setUpdateBannerDismissed(false);
         try {
             localStorage.setItem(LAST_SEEN_KEY, String(Date.now()));
         }
@@ -774,6 +776,11 @@ function SephoraTracker() {
     const scrollToTop = () => {
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
+    const jumpToFirstChange = () => {
+        const first = allCats.find((c) => itemsFor(c).some((i) => changedKeys.includes(`${c.name}::${i.name}`)));
+        if (first)
+            jumpToSection(first.name);
+    };
     const FILTER_TITLES = { all: "Staples", wishlist: "Want to Get", owned: "Makeup Bag", starred: "Top Picks", low: "Restock" };
     // Get Ready With Me — the makeup bag as a step-by-step routine, in application order
     const grwmSteps = () => allCats
@@ -1017,6 +1024,21 @@ function SephoraTracker() {
         : [];
     return (React.createElement("div", { style: styles.page },
         React.createElement("div", { style: styles.inner },
+            changedKeys.length > 0 && !updateBannerDismissed && (React.createElement("div", { className: "cat-body", style: styles.updateBanner, role: "button", tabIndex: 0, onClick: jumpToFirstChange, onKeyDown: (e) => {
+                    if (e.key === "Enter" || e.key === " ")
+                        jumpToFirstChange();
+                }, "aria-label": "Rose updated the list — tap to see what's new" },
+                React.createElement("span", { style: styles.updateBannerIcon }, "💄"),
+                React.createElement("span", { style: { flex: 1, minWidth: 0 } },
+                    React.createElement("span", { style: styles.updateBannerTitle }, "Rose updated the list!"),
+                    React.createElement("span", { style: styles.updateBannerSub },
+                        changedKeys.length,
+                        changedKeys.length === 1 ? " product changed" : " products changed",
+                        " since your last visit — tap to take a look")),
+                React.createElement("button", { style: styles.updateBannerClose, onClick: (e) => {
+                        e.stopPropagation();
+                        setUpdateBannerDismissed(true);
+                    }, "aria-label": "Dismiss update banner" }, "×"))),
             React.createElement("header", { style: styles.header },
                 React.createElement("div", { style: styles.eyebrow }, "ROSE KELLEY'S"),
                 React.createElement("h1", { style: styles.title }, "Sephora Staples"),
@@ -1545,6 +1567,52 @@ const styles = {
         fontWeight: 700,
         fontFamily: "'Karla', sans-serif",
         cursor: "pointer",
+    },
+    updateBanner: {
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        background: "linear-gradient(135deg, #F5AFC3 0%, #FBD5DF 100%)",
+        border: "1.5px solid #E89AB4",
+        borderRadius: 16,
+        padding: "12px 14px",
+        marginBottom: 16,
+        boxShadow: "0 2px 10px rgba(154, 74, 99, 0.18)",
+        cursor: "pointer",
+    },
+    updateBannerIcon: { fontSize: 22, flexShrink: 0 },
+    updateBannerTitle: {
+        display: "block",
+        fontFamily: "'Cormorant Garamond', serif",
+        fontStyle: "italic",
+        fontWeight: 600,
+        fontSize: 18,
+        color: "#7A2E48",
+        lineHeight: 1.2,
+    },
+    updateBannerSub: {
+        display: "block",
+        fontSize: 12.5,
+        fontWeight: 700,
+        color: "#9C4A63",
+        marginTop: 2,
+        lineHeight: 1.35,
+    },
+    updateBannerClose: {
+        flexShrink: 0,
+        width: 28,
+        height: 28,
+        borderRadius: "50%",
+        border: "1px solid #E89AB4",
+        background: "rgba(255,255,255,0.7)",
+        color: "#7A2E48",
+        fontSize: 16,
+        lineHeight: 1,
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 0,
     },
     bulkBtn: {
         background: "transparent",
